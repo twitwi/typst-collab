@@ -77,6 +77,7 @@ watch(() => props.activeFile, doCompile)
   flex: 1;
   overflow: auto;
   padding: 16px;
+  background: #fff;
 }
 .preview-placeholder {
   color: #585b70;
