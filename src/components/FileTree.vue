@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 
 interface TreeNode {
   name: string
@@ -21,6 +21,7 @@ const props = defineProps<{
   fileList: string[]
   activeFile: string
   mainFile: string
+  triggerRename: string | null
 }>()
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   delete: [path: string]
   rename: [oldPath: string, newPath: string]
   setMain: [path: string]
+  renameStarted: []
 }>()
 
 const adding = ref(false)
@@ -217,6 +219,13 @@ function cancelRename() {
   renamingPath.value = null
   renameValue.value = ''
 }
+
+watch(() => props.triggerRename, (path) => {
+  if (path) {
+    startRename(path)
+    emit('renameStarted')
+  }
+})
 
 function openDeleteConfirm(path: string) {
   deletePath.value = path

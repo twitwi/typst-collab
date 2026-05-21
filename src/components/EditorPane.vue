@@ -15,6 +15,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   change: [value: string]
+  pasteImage: [data: { bytes: Uint8Array; mime: string }]
 }>()
 
 const editorRef = ref<HTMLDivElement | null>(null)
@@ -45,8 +46,36 @@ function buildEditor(ytext: Y.Text) {
   view = new EditorView({ state, parent: editorRef.value })
 }
 
+function onPaste(e: ClipboardEvent) {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  let imageItem: DataTransferItem | null = null
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      imageItem = item
+      break
+    }
+  }
+
+  if (!imageItem) return
+
+  e.preventDefault()
+  const file = imageItem.getAsFile()
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    const arr = new Uint8Array(reader.result as ArrayBuffer)
+    emit('pasteImage', { bytes: arr, mime: imageItem!.type })
+  }
+  reader.readAsArrayBuffer(file)
+}
+
 onMounted(() => {
   if (props.ytext) buildEditor(props.ytext)
+  editorRef.value?.addEventListener('paste', onPaste)
 })
 
 watch(
@@ -57,6 +86,7 @@ watch(
 )
 
 onUnmounted(() => {
+  editorRef.value?.removeEventListener('paste', onPaste)
   if (view) view.destroy()
 })
 </script>

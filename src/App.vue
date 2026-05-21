@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
@@ -17,6 +17,7 @@ const { connected, users, vfsReady, mainFile, awareness, initFromHash, connect, 
 const showBoxInput = ref(false)
 const boxAddress = ref('')
 const activeFile = ref('main.typ')
+const triggerRename = ref<string | null>(null)
 
 let rawVFS: CompatibleVFS | null = null
 let vfsAdapter: VFSAdapter | null = null
@@ -172,8 +173,14 @@ function handleDelete(path: string) {
 
 function handleRename(oldPath: string, newPath: string) {
   if (oldPath === newPath) return
-  const content = rawVFS?.readFileAsString(oldPath)
-  rawVFS?.setFile(newPath, content ?? '')
+  const isBin = rawVFS?.isBinary(oldPath)
+  if (isBin) {
+    const bytes = rawVFS?.readFileAsBytes(oldPath)
+    rawVFS?.setFile(newPath, bytes ?? new Uint8Array())
+  } else {
+    const content = rawVFS?.readFileAsString(oldPath)
+    rawVFS?.setFile(newPath, content ?? '')
+  }
   rawVFS?.deleteFile(oldPath)
   if (activeFile.value === oldPath) activeFile.value = newPath
   if (mainFile.value === oldPath) setMainFile(newPath)
@@ -181,6 +188,49 @@ function handleRename(oldPath: string, newPath: string) {
 
 function handleSetMain(path: string) {
   setMainFile(path)
+}
+
+function createImageFile(bytes: Uint8Array, mime: string) {
+  if (!rawVFS || !vfsAdapter) return
+  const ext = mime.split('/').pop() || 'png'
+  let n = 1
+  const existing = new Set(vfsAdapter.listFiles())
+  while (existing.has(`image-${n}.${ext}`)) n++
+  const path = `image-${n}.${ext}`
+  rawVFS.setFile(path, bytes)
+  activeFile.value = path
+  nextTick(() => {
+    triggerRename.value = path
+  })
+}
+
+function handlePasteImage(data: { bytes: Uint8Array; mime: string }) {
+  createImageFile(data.bytes, data.mime)
+}
+
+function handlePanePaste(e: ClipboardEvent) {
+  if (e.defaultPrevented) return
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      e.preventDefault()
+      const file = item.getAsFile()
+      if (!file) continue
+      const reader = new FileReader()
+      reader.onload = () => {
+        const arr = new Uint8Array(reader.result as ArrayBuffer)
+        createImageFile(arr, item.type)
+      }
+      reader.readAsArrayBuffer(file)
+      break
+    }
+  }
+}
+
+function handleRenameStarted() {
+  triggerRename.value = null
 }
 
 onMounted(() => {
@@ -205,16 +255,18 @@ onMounted(() => {
       @change-box="handleChangeBox"
     />
 
-    <div v-if="vfsReady" class="panes">
+    <div v-if="vfsReady" class="panes" @paste="handlePanePaste">
       <FileTree
         :file-list="fileList"
         :active-file="activeFile"
         :main-file="mainFile"
+        :trigger-rename="triggerRename"
         @select="handleSelect"
         @add="handleAdd"
         @delete="handleDelete"
         @rename="handleRename"
         @set-main="handleSetMain"
+        @rename-started="handleRenameStarted"
       />
 
       <div class="pane editor-pane-wrapper">
@@ -232,6 +284,7 @@ onMounted(() => {
           :key="activeFile"
           :ytext="currentYText"
           :awareness="awareness"
+          @paste-image="handlePasteImage"
         />
         <div v-else class="empty-editor">Select or create a file</div>
       </div>
