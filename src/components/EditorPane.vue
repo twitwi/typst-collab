@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { keymap } from '@codemirror/view'
@@ -20,21 +20,12 @@ const emit = defineEmits<{
 const editorRef = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
 
-watch(
-  () => props.ytext,
-  (ytext) => {
-    if (view) {
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: ytext.toString() },
-      })
-    }
+function buildEditor(ytext: Y.Text) {
+  if (view) {
+    view.destroy()
+    view = null
   }
-)
-
-onMounted(() => {
-  if (!editorRef.value || !props.ytext) return
-
-  const ytext = props.ytext
+  if (!editorRef.value) return
 
   const state = EditorState.create({
     doc: ytext.toString(),
@@ -51,21 +42,23 @@ onMounted(() => {
     ],
   })
 
-  view = new EditorView({
-    state,
-    parent: editorRef.value,
-  })
-})
-
-function setValue(value: string) {
-  if (view) {
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: value },
-    })
-  }
+  view = new EditorView({ state, parent: editorRef.value })
 }
 
-defineExpose({ setValue })
+onMounted(() => {
+  if (props.ytext) buildEditor(props.ytext)
+})
+
+watch(
+  () => props.ytext,
+  (ytext) => {
+    if (ytext) buildEditor(ytext)
+  }
+)
+
+onUnmounted(() => {
+  if (view) view.destroy()
+})
 </script>
 
 <template>

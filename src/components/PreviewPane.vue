@@ -1,29 +1,30 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { watch, onMounted } from 'vue'
+import * as Y from 'yjs'
 import { useTypst } from '../composables/useTypst'
 
 const props = defineProps<{
-  source: string
+  files: Y.Map<Y.Text>
+  changeKey: number
 }>()
 
-const { init, compile, compiling, svgContent, error } = useTypst()
-const previewRef = ref<HTMLDivElement | null>(null)
+const { init, compileFromFS, compiling, svgContent, error } = useTypst()
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   await init()
-  if (props.source) {
-    await compile(props.source)
+  if (props.files.size > 0) {
+    await compileFromFS(props.files)
   }
 })
 
 watch(
-  () => props.source,
-  (newSource) => {
+  () => props.changeKey,
+  () => {
     if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(async () => {
-      await compile(newSource)
+      await compileFromFS(props.files)
     }, 500)
   }
 )
@@ -35,7 +36,7 @@ watch(
       <span>Preview</span>
       <span v-if="compiling" class="compiling-badge">compiling...</span>
     </div>
-    <div class="preview-content" ref="previewRef">
+    <div class="preview-content">
       <div v-if="error" class="preview-error">{{ error }}</div>
       <div v-else-if="compiling && !svgContent" class="preview-placeholder">Compiling...</div>
       <div v-else-if="!svgContent && !compiling" class="preview-placeholder">Start typing to preview</div>

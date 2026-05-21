@@ -1,47 +1,61 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, watch, onMounted } from 'vue'
+import { useCollab } from './composables/useCollab'
+import FileTree from './components/FileTree.vue'
 import EditorPane from './components/EditorPane.vue'
 import PreviewPane from './components/PreviewPane.vue'
 import ConnectionBar from './components/ConnectionBar.vue'
-import { useCollab } from './composables/useCollab'
 
 const room = 'typst-collab-demo'
 const serverUrl = `ws://${window.location.hostname}:4000`
 
-const { ytext, awareness, connected, users, connect, disconnect } =
-  useCollab(room, serverUrl)
+const {
+  vfs,
+  activeFile,
+  setActiveFile,
+  awareness,
+  connected,
+  users,
+  connect,
+  disconnect,
+} = useCollab(room, serverUrl)
 
-const editorSource = ref('')
+const currentYText = computed(() => {
+  vfs.version.value
+  return vfs.getFile(activeFile.value)
+})
 
-function handleEditorChange(value: string) {
-  editorSource.value = value
+const fileList = computed(() => {
+  vfs.version.value
+  return vfs.listFiles()
+})
+
+watch(vfs.version, () => {
+  if (activeFile.value && !vfs.getFile(activeFile.value)) {
+    const list = vfs.listFiles()
+    setActiveFile(list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ')
+  }
+})
+
+function handleSelect(path: string) {
+  setActiveFile(path)
+}
+
+function handleAdd(path: string) {
+  vfs.setFile(path, '')
+  setActiveFile(path)
+}
+
+function handleDelete(path: string) {
+  vfs.deleteFile(path)
+  if (activeFile.value === path) {
+    const list = vfs.listFiles()
+    setActiveFile(list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ')
+  }
 }
 
 onMounted(() => {
   connect()
-  if (ytext.toString()) {
-    editorSource.value = ytext.toString()
-  } else {
-    const initial = `= Hello, Typst!
-
-This is a *collaborative* document.
-
-#align(center)[
-  #rect(fill: blue.transparentize(0.8))[
-    #text(size: 24pt)[Welcome to typst-collab!]
-  ]
-]
-
-== Features
-- Real-time collaboration via Yjs
-- Live preview with Typst WASM
-- Split pane editor
-
-#lorem(30)
-`
-    ytext.insert(0, initial)
-    editorSource.value = initial
-  }
 })
 </script>
 
@@ -55,17 +69,28 @@ This is a *collaborative* document.
       @disconnect="disconnect()"
     />
     <div class="panes">
+      <FileTree
+        :file-list="fileList"
+        :active-file="activeFile"
+        @select="handleSelect"
+        @add="handleAdd"
+        @delete="handleDelete"
+      />
       <div class="pane editor-pane-wrapper">
-        <div class="pane-header">Editor</div>
+        <div class="pane-header">
+          {{ activeFile }}
+        </div>
         <EditorPane
-          :ytext="ytext"
+          v-if="currentYText"
+          :key="activeFile"
+          :ytext="currentYText"
           :awareness="awareness"
-          @change="handleEditorChange"
         />
+        <div v-else class="empty-editor">Select or create a file</div>
       </div>
       <div class="pane-divider" />
       <div class="pane preview-pane-wrapper">
-        <PreviewPane :source="editorSource" />
+        <PreviewPane :files="vfs.files" :change-key="vfs.version.value" />
       </div>
     </div>
   </div>
@@ -101,7 +126,6 @@ html, body {
   overflow: hidden;
 }
 .pane {
-  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -117,14 +141,26 @@ html, body {
   width: 4px;
   background: #313244;
   cursor: col-resize;
+  flex-shrink: 0;
 }
 .pane-divider:hover {
   background: #45475a;
 }
 .editor-pane-wrapper {
-  min-width: 300px;
+  flex: 1;
+  min-width: 250px;
 }
 .preview-pane-wrapper {
-  min-width: 300px;
+  flex: 1;
+  min-width: 250px;
+}
+.empty-editor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #585b70;
+  font-style: italic;
+  font-size: 14px;
 }
 </style>
