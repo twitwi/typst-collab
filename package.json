@@ -21,7 +21,9 @@
     "@codemirror/view": "^6.34",
     "@codemirror/language": "^6.10",
     "@codemirror/autocomplete": "^6.18",
-    "@myriaddreamin/typst.ts": "^0.7.0-rc2"
+    "@myriaddreamin/typst.ts": "^0.7.0-rc2",
+    "@myriaddreamin/typst-ts-renderer": "^0.7.0-rc2",
+    "@myriaddreamin/typst-ts-web-compiler": "^0.7.0-rc2"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2",
