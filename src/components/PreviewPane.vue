@@ -14,13 +14,15 @@ const { init, compileFromVFS, compiling, svgContent, error } = useTypst()
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 async function doCompile() {
+  const entry = props.vfs.listFiles().includes(props.mainFile)
+    ? props.mainFile
+    : 'main.typ'
+  await compileFromVFS(props.vfs, entry)
+}
+
+async function debouncedCompile() {
   if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(async () => {
-    const entry = props.vfs.listFiles().includes(props.mainFile)
-      ? props.mainFile
-      : 'main.typ'
-    await compileFromVFS(props.vfs, entry)
-  }, 500)
+  debounceTimer = setTimeout(doCompile, 500)
 }
 
 onMounted(async () => {
@@ -28,7 +30,7 @@ onMounted(async () => {
   if (props.vfs.listFiles().length > 0) doCompile()
 })
 
-watch(() => props.changeKey, doCompile)
+watch(() => props.changeKey, debouncedCompile)
 watch(() => props.mainFile, doCompile)
 </script>
 

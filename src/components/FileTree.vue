@@ -39,7 +39,6 @@ const popoverPath = ref<string | null>(null)
 
 const renamingPath = ref<string | null>(null)
 const renameValue = ref('')
-const renameInputRef = ref<HTMLInputElement | null>(null)
 
 const deletePath = ref<string | null>(null)
 const deleteConfirmRef = ref<HTMLDivElement | null>(null)
@@ -189,9 +188,17 @@ function closePopover() {
 
 function startRename(path: string) {
   renamingPath.value = path
-  renameValue.value = path.split('/').pop() || path
+  const name = path.split('/').pop() || path
+  renameValue.value = name
   popoverPath.value = null
-  nextTick(() => renameInputRef.value?.focus())
+  nextTick(() => {
+    const el = document.querySelector<HTMLInputElement>('[data-rename-input]')
+    if (!el) return
+    el.focus()
+    const dot = name.lastIndexOf('.')
+    const selLen = dot > 0 ? dot : name.length
+    el.setSelectionRange(0, selLen)
+  })
 }
 
 function submitRename(path: string) {
@@ -225,6 +232,7 @@ function doDelete() {
 
 function handleSetMain(path: string) {
   emit('setMain', path)
+  emit('select', path)
   popoverPath.value = null
 }
 
@@ -300,7 +308,7 @@ onUnmounted(() => {
 
         <template v-else-if="renamingPath === node.path">
           <input
-            ref="renameInputRef"
+            data-rename-input
             v-model="renameValue"
             class="rename-input"
             @click.stop
