@@ -20,6 +20,7 @@ export function useCollab() {
   const connected = ref(false)
   const users = ref<{ name: string; color: string }[]>([])
   const vfsReady = ref(false)
+  const mainFile = ref('main.typ')
   const myName = randItem(NAMES)
   const myColor = randItem(COLORS)
 
@@ -74,6 +75,14 @@ export function useCollab() {
       users.value = list
     })
 
+    const meta = ydoc.getMap<any>('meta')
+    const stored = meta.get('mainFile')
+    if (typeof stored === 'string') mainFile.value = stored
+    meta.observe(() => {
+      const v = meta.get('mainFile')
+      if (typeof v === 'string') mainFile.value = v
+    })
+
     return { ydoc, provider }
   }
 
@@ -90,6 +99,17 @@ export function useCollab() {
     return vfs
   }
 
+  function setMainFile(path: string) {
+    if (!ydoc) return
+    const meta = ydoc.getMap<any>('meta')
+    meta.set('mainFile', path)
+    mainFile.value = path
+  }
+
+  function getYDoc(): Y.Doc | null {
+    return ydoc
+  }
+
   onUnmounted(() => {
     provider?.disconnect()
   })
@@ -98,10 +118,13 @@ export function useCollab() {
     connected,
     users,
     vfsReady,
+    mainFile,
     awareness,
     initFromHash,
     connect,
     disconnect,
     getVFS,
+    setMainFile,
+    getYDoc,
   }
 }

@@ -6,7 +6,7 @@ import type { VFSAdapter } from '../composables/useTypst'
 const props = defineProps<{
   vfs: VFSAdapter
   changeKey: number
-  activeFile: string
+  mainFile: string
 }>()
 
 const { init, compileFromVFS, compiling, svgContent, error } = useTypst()
@@ -16,8 +16,8 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 async function doCompile() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(async () => {
-    const entry = props.vfs.listFiles().includes(props.activeFile)
-      ? props.activeFile
+    const entry = props.vfs.listFiles().includes(props.mainFile)
+      ? props.mainFile
       : 'main.typ'
     await compileFromVFS(props.vfs, entry)
   }, 500)
@@ -29,7 +29,7 @@ onMounted(async () => {
 })
 
 watch(() => props.changeKey, doCompile)
-watch(() => props.activeFile, doCompile)
+watch(() => props.mainFile, doCompile)
 </script>
 
 <template>

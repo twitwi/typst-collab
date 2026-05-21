@@ -12,7 +12,7 @@ import BoxInput from './components/BoxInput.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
-const { connected, users, vfsReady, awareness, initFromHash, connect, disconnect, getVFS } = useCollab()
+const { connected, users, vfsReady, mainFile, awareness, initFromHash, connect, disconnect, getVFS, setMainFile } = useCollab()
 
 const showBoxInput = ref(false)
 const boxAddress = ref('')
@@ -125,6 +125,23 @@ function handleDelete(path: string) {
     const list = vfsAdapter?.listFiles() ?? []
     activeFile.value = list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ'
   }
+  if (mainFile.value === path) {
+    const list = vfsAdapter?.listFiles() ?? []
+    setMainFile(list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ')
+  }
+}
+
+function handleRename(oldPath: string, newPath: string) {
+  if (oldPath === newPath) return
+  const content = rawVFS?.readFileAsString(oldPath)
+  rawVFS?.setFile(newPath, content ?? '')
+  rawVFS?.deleteFile(oldPath)
+  if (activeFile.value === oldPath) activeFile.value = newPath
+  if (mainFile.value === oldPath) setMainFile(newPath)
+}
+
+function handleSetMain(path: string) {
+  setMainFile(path)
 }
 
 onMounted(() => {
@@ -153,9 +170,12 @@ onMounted(() => {
       <FileTree
         :file-list="fileList"
         :active-file="activeFile"
+        :main-file="mainFile"
         @select="handleSelect"
         @add="handleAdd"
         @delete="handleDelete"
+        @rename="handleRename"
+        @set-main="handleSetMain"
       />
 
       <div class="pane editor-pane-wrapper">
@@ -176,7 +196,7 @@ onMounted(() => {
           v-if="vfsAdapter"
           :vfs="vfsAdapter"
           :change-key="vfsVersion"
-          :active-file="activeFile"
+          :main-file="mainFile"
         />
       </div>
     </div>
