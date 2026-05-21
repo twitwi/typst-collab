@@ -1,8 +1,7 @@
 import { ref, type Ref } from 'vue'
 import * as Y from 'yjs'
-import { getY } from '../lib/ytools'
 import { ROOT_ID, makeBaseNode, initializeInYMap, _generateId, now } from '../lib/ybox'
-import type { DirectoryNode, TextNode, BinaryNode, NodeType } from '../lib/ybox'
+import type { DirectoryNode, TextNode, BinaryNode } from '../lib/ybox'
 
 function isProbablyBinary(content: string): boolean {
   if (!content) return false
@@ -28,7 +27,7 @@ function base64Decode(b64: string): Uint8Array {
   return bytes
 }
 
-function ensureMapPath(ydoc: Y.Doc, path: string): Y.Map<any> {
+export function ensureMapPath(ydoc: Y.Doc, path: string): Y.Map<any> {
   const steps = path.split('/').filter(Boolean)
   if (steps.length === 0) return ydoc.getMap()
   let p = ydoc.getMap()
@@ -70,9 +69,8 @@ function getNode(description: Y.Map<any>, relPath: string): ReturnType<typeof ma
   return makeBaseNode(node)
 }
 
-export function useCompatibleVFS(ydoc: Y.Doc, path: string) {
-  const description = ensureMapPath(ydoc, path)
-  initializeInYMap(description)
+export function useCompatibleVFS(description: Y.Map<any>, needsInit = false) {
+  if (needsInit) initializeInYMap(description)
 
   const version = ref(0)
   const increment = () => { version.value++ }

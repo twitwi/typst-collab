@@ -2,7 +2,8 @@ import { ref, onUnmounted, type Ref } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { parseHash } from '../lib/hash'
-import { useCompatibleVFS } from './useCompatibleVFS'
+import { getY } from '../lib/ytools'
+import { useCompatibleVFS, ensureMapPath } from './useCompatibleVFS'
 
 const COLORS = [
   '#f38ba8', '#a6e3a1', '#89b4fa', '#f9e2af',
@@ -18,9 +19,9 @@ const randItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 export function useCollab() {
   const connected = ref(false)
   const users = ref<{ name: string; color: string }[]>([])
+  const vfsReady = ref(false)
   const myName = randItem(NAMES)
   const myColor = randItem(COLORS)
-  const parsed = ref<{ server: string; docname: string; token: string; path: string } | null>(null)
 
   let ydoc: Y.Doc | null = null
   let provider: WebsocketProvider | null = null
@@ -29,7 +30,6 @@ export function useCollab() {
 
   function initFromHash(hash: string) {
     const p = parseHash(hash)
-    parsed.value = p
 
     ydoc = new Y.Doc()
 
@@ -45,7 +45,15 @@ export function useCollab() {
     })
 
     provider.on('sync', (synced: boolean) => {
-      if (synced) connected.value = true
+      if (!synced) return
+      const existing = getY(ydoc!, p.path)
+      if (existing && existing instanceof Y.Map) {
+        vfs = useCompatibleVFS(existing)
+      } else {
+        const created = ensureMapPath(ydoc!, p.path)
+        vfs = useCompatibleVFS(created, true)
+      }
+      vfsReady.value = true
     })
 
     awareness = provider.awareness
@@ -65,9 +73,7 @@ export function useCollab() {
       users.value = list
     })
 
-    vfs = useCompatibleVFS(ydoc, p.path)
-
-    return { ydoc, provider, vfs }
+    return { ydoc, provider }
   }
 
   function connect() {
@@ -79,7 +85,7 @@ export function useCollab() {
   }
 
   function getVFS(): ReturnType<typeof useCompatibleVFS> {
-    if (!vfs) throw new Error('VFS not initialized. Call initFromHash first.')
+    if (!vfs) throw new Error('VFS not initialized')
     return vfs
   }
 
@@ -88,9 +94,9 @@ export function useCollab() {
   })
 
   return {
-    parsed,
     connected,
     users,
+    vfsReady,
     awareness,
     initFromHash,
     connect,

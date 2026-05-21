@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
-import { useTypst, type VFSAdapter } from './composables/useTypst'
+import type { VFSAdapter } from './composables/useTypst'
 import type { CompatibleVFS } from './composables/useCompatibleVFS'
 import FileTree from './components/FileTree.vue'
 import EditorPane from './components/EditorPane.vue'
@@ -12,7 +12,7 @@ import BoxInput from './components/BoxInput.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
-const { connected, users, awareness, initFromHash, connect, disconnect, getVFS } = useCollab()
+const { connected, users, vfsReady, awareness, initFromHash, connect, disconnect, getVFS } = useCollab()
 
 const showBoxInput = ref(false)
 const boxAddress = ref('')
@@ -67,7 +67,13 @@ function handleChangeBox() {
 }
 
 function initialize(addr: string) {
-  const { vfs } = initFromHash(addr)
+  initFromHash(addr)
+  connect()
+}
+
+watch(vfsReady, (ready) => {
+  if (!ready) return
+  const vfs = getVFS()
   rawVFS = vfs
   vfsAdapter = {
     listFiles: () => vfs.listFiles(),
@@ -75,12 +81,8 @@ function initialize(addr: string) {
     readFileAsBytes: (p: string) => vfs.readFileAsBytes(p),
     isBinary: (p: string) => vfs.isBinary(p),
   }
-  connect()
-}
 
-watch(connected, (val) => {
-  if (!val || !vfsAdapter) return
-  const list = vfsAdapter.listFiles()
+  const list = vfs.listFiles()
   if (list.length === 0) {
     const initial = `= Hello, Typst!
 
@@ -100,7 +102,7 @@ This is a *collaborative* document.
 
 #lorem(30)
 `
-    rawVFS!.setFile('main.typ', initial)
+    vfs.setFile('main.typ', initial)
     activeFile.value = 'main.typ'
   } else if (!list.includes(activeFile.value)) {
     activeFile.value = list[0]
@@ -146,7 +148,7 @@ onMounted(() => {
       @change-box="handleChangeBox"
     />
 
-    <div class="panes">
+    <div v-if="vfsReady" class="panes">
       <FileTree
         :file-list="fileList"
         :active-file="activeFile"
@@ -163,10 +165,7 @@ onMounted(() => {
           :ytext="currentYText"
           :awareness="awareness"
         />
-        <div v-else class="empty-editor">
-          <template v-if="!connected">Connecting...</template>
-          <template v-else>Select or create a file</template>
-        </div>
+        <div v-else class="empty-editor">Select or create a file</div>
       </div>
 
       <div class="pane-divider" />
@@ -178,6 +177,10 @@ onMounted(() => {
           :change-key="vfsVersion"
         />
       </div>
+    </div>
+
+    <div v-else-if="connected" class="panes">
+      <div class="loading">Syncing files...</div>
     </div>
 
     <BoxInput
@@ -255,5 +258,14 @@ html, body {
   color: #585b70;
   font-style: italic;
   font-size: 14px;
+}
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: #585b70;
+  font-style: italic;
+  font-size: 16px;
 }
 </style>
