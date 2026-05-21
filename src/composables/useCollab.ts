@@ -1,7 +1,8 @@
 import { ref, onUnmounted, type Ref } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
-import { useVirtualFS } from './useVirtualFS'
+import { parseHash } from '../lib/hash'
+import { useCompatibleVFS } from './useCompatibleVFS'
 
 const COLORS = [
   '#f38ba8', '#a6e3a1', '#89b4fa', '#f9e2af',
@@ -14,91 +15,86 @@ const NAMES = [
 
 const randItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
-const ydoc = new Y.Doc()
-
-export function useCollab(room: string, serverUrl = 'ws://localhost:4000') {
+export function useCollab() {
   const connected = ref(false)
   const users = ref<{ name: string; color: string }[]>([])
-  const activeFile = ref('main.typ')
   const myName = randItem(NAMES)
   const myColor = randItem(COLORS)
+  const parsed = ref<{ server: string; docname: string; token: string; path: string } | null>(null)
 
-  const vfs = useVirtualFS(ydoc)
+  let ydoc: Y.Doc | null = null
+  let provider: WebsocketProvider | null = null
+  let vfs: ReturnType<typeof useCompatibleVFS> | null = null
+  let awareness: any = null
 
-  const provider = new WebsocketProvider(serverUrl, room, ydoc, {
-    connect: false,
-  })
+  function initFromHash(hash: string) {
+    const p = parseHash(hash)
+    parsed.value = p
 
-  provider.on('status', (event: { status: string }) => {
-    connected.value = event.status === 'connected'
-  })
+    ydoc = new Y.Doc()
 
-  provider.on('sync', (synced: boolean) => {
-    if (synced) connected.value = true
-    if (synced && vfs.isEmpty()) {
-      const initial = `= Hello, Typst!
+    provider = new WebsocketProvider(
+      p.server.includes('://') ? p.server : `wss://${p.server}`,
+      `${p.docname}?t=${p.token}`,
+      ydoc,
+      { connect: false }
+    )
 
-This is a *collaborative* document.
-
-#align(center)[
-  #rect(fill: blue.transparentize(0.8))[
-    #text(size: 24pt)[Welcome to typst-collab!]
-  ]
-]
-
-== Features
-- Real-time collaboration via Yjs
-- Live preview with Typst WASM
-- Split pane editor
-
-#lorem(30)
-`
-      vfs.setFile('main.typ', initial)
-      activeFile.value = 'main.typ'
-    }
-  })
-
-  const awareness = provider.awareness
-  awareness.setLocalStateField('user', { name: myName, color: myColor })
-
-  awareness.on('change', () => {
-    const states = awareness.getStates()
-    const list: { name: string; color: string }[] = []
-    states.forEach((state: any, _clientId: number) => {
-      if (state.user) {
-        list.push({
-          name: state.user.name || `User ${_clientId}`,
-          color: state.user.color || '#666',
-        })
-      }
+    provider.on('status', (event: { status: string }) => {
+      connected.value = event.status === 'connected'
     })
-    users.value = list
-  })
 
-  function setActiveFile(path: string) {
-    activeFile.value = path
+    provider.on('sync', (synced: boolean) => {
+      if (synced) connected.value = true
+    })
+
+    awareness = provider.awareness
+    awareness.setLocalStateField('user', { name: myName, color: myColor })
+
+    awareness.on('change', () => {
+      const states = awareness.getStates()
+      const list: { name: string; color: string }[] = []
+      states.forEach((state: any, _clientId: number) => {
+        if (state.user) {
+          list.push({
+            name: state.user.name || `User ${_clientId}`,
+            color: state.user.color || '#666',
+          })
+        }
+      })
+      users.value = list
+    })
+
+    vfs = useCompatibleVFS(ydoc, p.path)
+
+    return { ydoc, provider, vfs }
   }
 
   function connect() {
-    provider.connect()
+    provider?.connect()
   }
 
   function disconnect() {
-    provider.disconnect()
+    provider?.disconnect()
+  }
+
+  function getVFS(): ReturnType<typeof useCompatibleVFS> {
+    if (!vfs) throw new Error('VFS not initialized. Call initFromHash first.')
+    return vfs
   }
 
   onUnmounted(() => {
-    provider.disconnect()
+    provider?.disconnect()
   })
 
   return {
-    vfs,
-    activeFile,
-    setActiveFile,
-    awareness,
+    parsed,
     connected,
     users,
+    awareness,
+    initFromHash,
     connect,
     disconnect,
+    getVFS,
   }
 }

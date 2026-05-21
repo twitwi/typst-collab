@@ -1,28 +1,28 @@
 <script setup lang="ts">
-import { useCollab } from '../composables/useCollab'
-
 const props = defineProps<{
   connected: boolean
   users: { name: string; color: string }[]
-  room: string
+  boxAddress: string
 }>()
 
 const emit = defineEmits<{
   connect: []
   disconnect: []
+  changeBox: []
 }>()
 </script>
 
 <template>
-  <div class="connection-bar" :class="{ connected: connected, disconnected: !connected }">
+  <div class="connection-bar" :class="{ connected, disconnected: !connected }">
     <span class="status-dot" />
     <span class="status-text">
       {{ connected ? 'Connected' : 'Disconnected' }}
     </span>
-    <span class="room-label">{{ room }}</span>
+    <span class="box-address" :title="boxAddress">{{ boxAddress }}</span>
     <span v-for="(u, i) in users" :key="i" class="user-badge" :style="{ background: u.color }">
       {{ u.name }}
     </span>
+    <button class="action-btn" @click="emit('changeBox')">Change</button>
     <button v-if="!connected" class="action-btn" @click="emit('connect')">Connect</button>
     <button v-else class="action-btn" @click="emit('disconnect')">Disconnect</button>
   </div>
@@ -50,6 +50,7 @@ const emit = defineEmits<{
   height: 8px;
   border-radius: 50%;
   background: #666;
+  flex-shrink: 0;
 }
 .connected .status-dot {
   background: #4caf50;
@@ -59,19 +60,25 @@ const emit = defineEmits<{
 }
 .status-text {
   font-weight: 600;
+  flex-shrink: 0;
 }
-.room-label {
-  color: #888;
-  margin-left: 4px;
+.box-address {
+  color: #89b4fa;
+  font-family: monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
 }
 .user-badge {
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
   color: #fff;
+  flex-shrink: 0;
 }
 .action-btn {
-  margin-left: auto;
   background: #333;
   border: 1px solid #555;
   color: #ccc;
@@ -79,6 +86,7 @@ const emit = defineEmits<{
   padding: 2px 10px;
   cursor: pointer;
   font-size: 11px;
+  flex-shrink: 0;
 }
 .action-btn:hover {
   background: #444;

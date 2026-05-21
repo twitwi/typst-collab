@@ -1,19 +1,17 @@
-import { ref, shallowRef } from 'vue'
-import * as Y from 'yjs'
-import { isProbablyBinary } from './useVirtualFS'
+import { ref } from 'vue'
+
+export interface VFSAdapter {
+  listFiles(): string[]
+  readFileAsString(path: string): string | null
+  readFileAsBytes(path: string): Uint8Array | null
+  isBinary(path: string): boolean
+}
 
 let typstInitialized = false
 
-function base64Decode(b64: string): Uint8Array {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
 export function useTypst() {
   const compiling = ref(false)
-  const svgContent = shallowRef<string>('')
+  const svgContent = ref<string>('')
   const error = ref<string | null>(null)
 
   async function init() {
@@ -36,7 +34,7 @@ export function useTypst() {
     }
   }
 
-  async function compileFromFS(files: Y.Map<Y.Text>) {
+  async function compileFromVFS(vfs: VFSAdapter) {
     compiling.value = true
     error.value = null
     try {
@@ -44,20 +42,17 @@ export function useTypst() {
 
       $typst.resetShadow()
 
-      for (const [path, ytext] of files) {
-        const content = ytext.toString()
-        if (!content) continue
-        if (isProbablyBinary(content)) {
-          const bytes = base64Decode(content)
-          $typst.mapShadow('/' + path, bytes)
+      for (const filePath of vfs.listFiles()) {
+        if (vfs.isBinary(filePath)) {
+          const bytes = vfs.readFileAsBytes(filePath)
+          if (bytes) $typst.mapShadow('/' + filePath, bytes)
         } else {
-          $typst.addSource('/' + path, content)
+          const content = vfs.readFileAsString(filePath)
+          if (content !== null) $typst.addSource('/' + filePath, content)
         }
       }
 
-      const svg = await $typst.svg({
-        mainFilePath: '/main.typ',
-      })
+      const svg = await $typst.svg({ mainFilePath: '/main.typ' })
       svgContent.value = svg
     } catch (e: any) {
       error.value = e.message || String(e)
@@ -67,5 +62,5 @@ export function useTypst() {
     }
   }
 
-  return { init, compileFromFS, compiling, svgContent, error }
+  return { init, compileFromVFS, compiling, svgContent, error }
 }

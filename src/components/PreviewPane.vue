@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { watch, onMounted } from 'vue'
-import * as Y from 'yjs'
 import { useTypst } from '../composables/useTypst'
+import type { VFSAdapter } from '../composables/useTypst'
 
 const props = defineProps<{
-  files: Y.Map<Y.Text>
+  vfs: VFSAdapter
   changeKey: number
 }>()
 
-const { init, compileFromFS, compiling, svgContent, error } = useTypst()
+const { init, compileFromVFS, compiling, svgContent, error } = useTypst()
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   await init()
-  if (props.files.size > 0) {
-    await compileFromFS(props.files)
+  if (props.vfs.listFiles().length > 0) {
+    await compileFromVFS(props.vfs)
   }
 })
 
@@ -24,7 +24,7 @@ watch(
   () => {
     if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(async () => {
-      await compileFromFS(props.files)
+      await compileFromVFS(props.vfs)
     }, 500)
   }
 )

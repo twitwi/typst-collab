@@ -1,61 +1,137 @@
 <script setup lang="ts">
-import { computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
+import { useTypst, type VFSAdapter } from './composables/useTypst'
+import type { CompatibleVFS } from './composables/useCompatibleVFS'
 import FileTree from './components/FileTree.vue'
 import EditorPane from './components/EditorPane.vue'
 import PreviewPane from './components/PreviewPane.vue'
 import ConnectionBar from './components/ConnectionBar.vue'
+import BoxInput from './components/BoxInput.vue'
 
-const room = 'typst-collab-demo'
-const serverUrl = `ws://${window.location.hostname}:4000`
+const LS_KEY = 'typst-collab:box-address'
 
-const {
-  vfs,
-  activeFile,
-  setActiveFile,
-  awareness,
-  connected,
-  users,
-  connect,
-  disconnect,
-} = useCollab(room, serverUrl)
+const { connected, users, awareness, initFromHash, connect, disconnect, getVFS } = useCollab()
 
-const currentYText = computed(() => {
-  vfs.version.value
-  return vfs.getFile(activeFile.value)
-})
+const showBoxInput = ref(false)
+const boxAddress = ref('')
+const activeFile = ref('main.typ')
+
+let rawVFS: CompatibleVFS | null = null
+let vfsAdapter: VFSAdapter | null = null
+
+const vfsVersion = computed(() => rawVFS?.version.value ?? 0)
 
 const fileList = computed(() => {
-  vfs.version.value
-  return vfs.listFiles()
+  vfsVersion.value
+  return vfsAdapter?.listFiles() ?? []
 })
 
-watch(vfs.version, () => {
-  if (activeFile.value && !vfs.getFile(activeFile.value)) {
-    const list = vfs.listFiles()
-    setActiveFile(list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ')
+const currentYText = computed((): Y.Text | undefined => {
+  vfsVersion.value
+  activeFile.value
+  try {
+    const f = rawVFS?.getFile(activeFile.value)
+    return f || undefined
+  } catch {
+    return undefined
+  }
+})
+
+function getBoxAddress(): string {
+  const hash = window.location.hash.replace(/^#\/?/, '')
+  if (hash) return hash
+  return localStorage.getItem(LS_KEY) || ''
+}
+
+function saveBoxAddress(addr: string) {
+  localStorage.setItem(LS_KEY, addr)
+}
+
+function handleBoxConfirm(addr: string) {
+  showBoxInput.value = false
+  if (!addr) return
+  boxAddress.value = addr
+  saveBoxAddress(addr)
+  initialize(addr)
+}
+
+function handleBoxCancel() {
+  showBoxInput.value = false
+}
+
+function handleChangeBox() {
+  disconnect()
+  showBoxInput.value = true
+}
+
+function initialize(addr: string) {
+  const { vfs } = initFromHash(addr)
+  rawVFS = vfs
+  vfsAdapter = {
+    listFiles: () => vfs.listFiles(),
+    readFileAsString: (p: string) => vfs.readFileAsString(p),
+    readFileAsBytes: (p: string) => vfs.readFileAsBytes(p),
+    isBinary: (p: string) => vfs.isBinary(p),
+  }
+  connect()
+}
+
+watch(connected, (val) => {
+  if (!val || !vfsAdapter) return
+  const list = vfsAdapter.listFiles()
+  if (list.length === 0) {
+    const initial = `= Hello, Typst!
+
+This is a *collaborative* document.
+
+#align(center)[
+  #rect(fill: blue.transparentize(0.8))[
+    #text(size: 24pt)[Welcome to typst-collab!]
+  ]
+]
+
+== Features
+- Real-time collaboration via Yjs
+- Live preview with Typst WASM
+- Split pane editor
+- Compatible with codyjs boxes
+
+#lorem(30)
+`
+    rawVFS!.setFile('main.typ', initial)
+    activeFile.value = 'main.typ'
+  } else if (!list.includes(activeFile.value)) {
+    activeFile.value = list[0]
   }
 })
 
 function handleSelect(path: string) {
-  setActiveFile(path)
+  activeFile.value = path
 }
 
 function handleAdd(path: string) {
-  vfs.setFile(path, '')
-  setActiveFile(path)
+  rawVFS?.setFile(path, '')
+  activeFile.value = path
 }
 
 function handleDelete(path: string) {
-  vfs.deleteFile(path)
+  rawVFS?.deleteFile(path)
   if (activeFile.value === path) {
-    const list = vfs.listFiles()
-    setActiveFile(list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ')
+    const list = vfsAdapter?.listFiles() ?? []
+    activeFile.value = list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ'
   }
 }
 
 onMounted(() => {
-  connect()
+  const addr = getBoxAddress()
+  if (addr) {
+    boxAddress.value = addr
+    initialize(addr)
+  } else {
+    showBoxInput.value = true
+  }
 })
 </script>
 
@@ -64,10 +140,12 @@ onMounted(() => {
     <ConnectionBar
       :connected="connected"
       :users="users"
-      :room="room"
+      :box-address="boxAddress"
       @connect="connect()"
       @disconnect="disconnect()"
+      @change-box="handleChangeBox"
     />
+
     <div class="panes">
       <FileTree
         :file-list="fileList"
@@ -76,23 +154,38 @@ onMounted(() => {
         @add="handleAdd"
         @delete="handleDelete"
       />
+
       <div class="pane editor-pane-wrapper">
-        <div class="pane-header">
-          {{ activeFile }}
-        </div>
+        <div class="pane-header">{{ activeFile }}</div>
         <EditorPane
-          v-if="currentYText"
+          v-if="currentYText && awareness"
           :key="activeFile"
           :ytext="currentYText"
           :awareness="awareness"
         />
-        <div v-else class="empty-editor">Select or create a file</div>
+        <div v-else class="empty-editor">
+          <template v-if="!connected">Connecting...</template>
+          <template v-else>Select or create a file</template>
+        </div>
       </div>
+
       <div class="pane-divider" />
+
       <div class="pane preview-pane-wrapper">
-        <PreviewPane :files="vfs.files" :change-key="vfs.version.value" />
+        <PreviewPane
+          v-if="vfsAdapter"
+          :vfs="vfsAdapter"
+          :change-key="vfsVersion"
+        />
       </div>
     </div>
+
+    <BoxInput
+      v-if="showBoxInput"
+      :model-value="boxAddress"
+      @confirm="handleBoxConfirm"
+      @cancel="handleBoxCancel"
+    />
   </div>
 </template>
 
