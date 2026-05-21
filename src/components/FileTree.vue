@@ -227,6 +227,12 @@ watch(() => props.triggerRename, (path) => {
   }
 })
 
+watch(deletePath, (path) => {
+  if (path) {
+    nextTick(() => deleteConfirmRef.value?.focus())
+  }
+})
+
 function openDeleteConfirm(path: string) {
   deletePath.value = path
   popoverPath.value = null
@@ -368,7 +374,9 @@ onUnmounted(() => {
         v-if="deletePath"
         ref="deleteConfirmRef"
         class="confirm-overlay"
+        tabindex="-1"
         @mousedown.self="deletePath = null"
+        @keydown.escape="deletePath = null"
       >
         <div class="confirm-dialog">
           <div class="confirm-text">Delete "{{ deletePath }}"?</div>
