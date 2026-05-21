@@ -464,6 +464,12 @@ onUnmounted(() => {
 }
 .node-label.is-main {
   font-weight: 700;
+  color: #a6e3a1;
+  border-left: 2px solid #a6e3a1;
+  padding-left: 6px;
+}
+.node-label.is-main .node-icon {
+  filter: drop-shadow(0 0 4px #a6e3a180);
 }
 .node-label:hover {
   background: #313244;
