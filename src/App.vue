@@ -29,6 +29,7 @@ const fileList = computed(() => {
 })
 
 const currentYText = computed((): Y.Text | undefined => {
+  vfsReady.value
   vfsVersion.value
   activeFile.value
   try {

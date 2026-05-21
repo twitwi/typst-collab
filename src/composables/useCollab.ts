@@ -23,10 +23,10 @@ export function useCollab() {
   const myName = randItem(NAMES)
   const myColor = randItem(COLORS)
 
+  const awareness = ref<any>(null)
   let ydoc: Y.Doc | null = null
   let provider: WebsocketProvider | null = null
   let vfs: ReturnType<typeof useCompatibleVFS> | null = null
-  let awareness: any = null
 
   function initFromHash(hash: string) {
     const p = parseHash(hash)
@@ -56,11 +56,12 @@ export function useCollab() {
       vfsReady.value = true
     })
 
-    awareness = provider.awareness
-    awareness.setLocalStateField('user', { name: myName, color: myColor })
+    const aw = provider.awareness
+    awareness.value = aw
+    aw.setLocalStateField('user', { name: myName, color: myColor })
 
-    awareness.on('change', () => {
-      const states = awareness.getStates()
+    aw.on('change', () => {
+      const states = aw.getStates()
       const list: { name: string; color: string }[] = []
       states.forEach((state: any, _clientId: number) => {
         if (state.user) {
