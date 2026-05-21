@@ -28,16 +28,54 @@ const fileList = computed(() => {
   return vfsAdapter?.listFiles() ?? []
 })
 
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp']
+const imageZoom = ref(1)
+
+function isImagePath(path: string): boolean {
+  const ext = path.split('.').pop()?.toLowerCase()
+  return ext ? IMAGE_EXTS.includes(ext) : false
+}
+
+function onImageWheel(e: WheelEvent) {
+  if (!isImagePath(activeFile.value)) return
+  e.preventDefault()
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  imageZoom.value = Math.max(0.1, Math.min(10, imageZoom.value + delta))
+}
+
 const currentYText = computed((): Y.Text | undefined => {
   vfsReady.value
   vfsVersion.value
   activeFile.value
+  if (isImagePath(activeFile.value)) return undefined
   try {
     const f = rawVFS?.getFile(activeFile.value)
     return f || undefined
   } catch {
     return undefined
   }
+})
+
+let prevUrl: string | null = null
+const imageUrl = computed((): string | null => {
+  vfsReady.value
+  vfsVersion.value
+  activeFile.value
+  if (!rawVFS || !isImagePath(activeFile.value)) return null
+  const bytes = rawVFS.readFileAsBytes(activeFile.value)
+  if (!bytes) return null
+  const ext = activeFile.value.split('.').pop()?.toLowerCase()
+  const mime =
+    ext === 'svg' ? 'image/svg+xml' :
+    ext === 'png' ? 'image/png' :
+    ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+    ext === 'gif' ? 'image/gif' :
+    ext === 'webp' ? 'image/webp' : null
+  if (!mime) return null
+  if (prevUrl) URL.revokeObjectURL(prevUrl)
+  const blob = new Blob([bytes], { type: mime })
+  prevUrl = URL.createObjectURL(blob)
+  return prevUrl
 })
 
 function getBoxAddress(): string {
@@ -112,6 +150,7 @@ This is a *collaborative* document.
 
 function handleSelect(path: string) {
   activeFile.value = path
+  imageZoom.value = 1
 }
 
 function handleAdd(path: string) {
@@ -180,8 +219,16 @@ onMounted(() => {
 
       <div class="pane editor-pane-wrapper">
         <div class="pane-header">{{ activeFile }}</div>
+        <div v-if="imageUrl" class="image-preview" @wheel.prevent="onImageWheel">
+          <img
+            :src="imageUrl"
+            :alt="activeFile"
+            :style="{ transform: `scale(${imageZoom})` }"
+          />
+          <div class="zoom-label">{{ Math.round(imageZoom * 100) }}%</div>
+        </div>
         <EditorPane
-          v-if="currentYText && awareness"
+          v-else-if="currentYText && awareness"
           :key="activeFile"
           :ytext="currentYText"
           :awareness="awareness"
@@ -280,6 +327,32 @@ html, body {
   color: #585b70;
   font-style: italic;
   font-size: 14px;
+}
+.image-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: #11111b;
+  position: relative;
+}
+.image-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform 0.1s;
+}
+.zoom-label {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.6);
+  color: #cdd6f4;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  pointer-events: none;
 }
 .loading {
   display: flex;
