@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 import * as Y from 'yjs'
 import { ROOT_ID, makeBaseNode, initializeInYMap, _generateId, now } from '../lib/ybox'
-import type { DirectoryNode, TextNode, BinaryNode } from '../lib/ybox'
+import type { BaseNode, DirectoryNode, TextNode, BinaryNode } from '../lib/ybox'
 
 function isProbablyBinary(content: string): boolean {
   if (!content) return false
@@ -91,6 +91,7 @@ export function useCompatibleVFS(description: Y.Map<any>, needsInit = false) {
         if (node.type === 'deleted') continue
         const fullPath = prefix ? `${prefix}/${name}` : name
         if (node.type === 'directory') {
+          result.push(fullPath + '/')
           walk(node as DirectoryNode, fullPath)
         } else {
           result.push(fullPath)
@@ -182,28 +183,79 @@ export function useCompatibleVFS(description: Y.Map<any>, needsInit = false) {
     parentDir.children.set(name, id)
   }
 
-  function deleteFile(relPath: string) {
+  function ensureDir(relPath: string): DirectoryNode {
+    const steps = relPath.split('/').filter(Boolean)
+    let currentId = ROOT_ID
+    let current = makeBaseNode(description.get(currentId)!) as DirectoryNode
+    if (!current || current.type !== 'directory') {
+      throw new Error('Root is not a directory')
+    }
+    for (const step of steps) {
+      const childId = current.children?.get(step)
+      if (childId) {
+        const child = makeBaseNode(description.get(childId)!)
+        if (child.type === 'directory') {
+          current = child as DirectoryNode
+          currentId = childId
+        } else {
+          throw new Error(`Path segment "${step}" is not a directory`)
+        }
+      } else {
+        const id = _generateId()
+        const t = now()
+        const node = new Y.Map<any>()
+        node.set('type', 'directory')
+        node.set('parent', currentId)
+        node.set('ctime', t)
+        node.set('mtime', t)
+        node.set('children', new Y.Map())
+        description.set(id, node)
+        current.children.set(step, id)
+        current = makeBaseNode(node) as DirectoryNode
+        currentId = id
+      }
+    }
+    return current
+  }
+
+  function mkdir(relPath: string) {
+    ensureDir(relPath)
+  }
+
+  function deleteNode(relPath: string) {
     const result = traverse(description, relPath)
     if (!result || !result.leafId) return
     const node = makeBaseNode(description.get(result.leafId)!)
-    node.type = 'deleted'
+    tombstoneRecursive(result.leafId, node)
     result.parentDir.children.delete(result.name)
   }
 
-  function renameFile(oldRelPath: string, newRelPath: string) {
+  function tombstoneRecursive(id: string, node: BaseNode) {
+    if (node.type === 'directory') {
+      const dir = node as DirectoryNode
+      if (dir.children) {
+        for (const [, childId] of dir.children) {
+          const child = description.get(childId)
+          if (child) {
+            const childNode = makeBaseNode(child)
+            tombstoneRecursive(childId, childNode)
+          }
+        }
+      }
+    }
+    node.type = 'deleted'
+  }
+
+  function renameNode(oldRelPath: string, newRelPath: string) {
     const oldResult = traverse(description, oldRelPath)
     if (!oldResult || !oldResult.leafId) return
     const oldNode = makeBaseNode(description.get(oldResult.leafId)!)
     if (oldNode.type === 'deleted') return
     oldResult.parentDir.children.delete(oldResult.name)
-
-    const newResult = traverse(description, newRelPath)
-    const parentDir = newResult?.parentDir ?? (() => {
-      const root = makeBaseNode(description.get(ROOT_ID)!) as DirectoryNode
-      return root
-    })()
-    const name = newRelPath.split('/').filter(Boolean).pop()!
-    parentDir.children.set(name, oldResult.leafId)
+    const newParentRel = newRelPath.split('/').filter(Boolean).slice(0, -1).join('/')
+    const newParent = newParentRel ? ensureDir(newParentRel) : makeBaseNode(description.get(ROOT_ID)!) as DirectoryNode
+    const newName = newRelPath.split('/').filter(Boolean).pop()!
+    newParent.children.set(newName, oldResult.leafId)
   }
 
   function isEmpty(): boolean {
@@ -225,8 +277,9 @@ export function useCompatibleVFS(description: Y.Map<any>, needsInit = false) {
     listFiles,
     getFile,
     setFile,
-    deleteFile,
-    renameFile,
+    mkdir,
+    deleteNode,
+    renameNode,
     readFileAsString,
     readFileAsBytes,
     isBinary,

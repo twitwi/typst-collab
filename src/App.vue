@@ -160,12 +160,12 @@ function handleAdd(path: string) {
 }
 
 function handleDelete(path: string) {
-  rawVFS?.deleteFile(path)
-  if (activeFile.value === path) {
+  rawVFS?.deleteNode(path)
+  if (activeFile.value === path || activeFile.value.startsWith(path + '/')) {
     const list = vfsAdapter?.listFiles() ?? []
     activeFile.value = list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ'
   }
-  if (mainFile.value === path) {
+  if (mainFile.value === path || mainFile.value.startsWith(path + '/')) {
     const list = vfsAdapter?.listFiles() ?? []
     setMainFile(list.includes('main.typ') ? 'main.typ' : list[0] || 'main.typ')
   }
@@ -173,17 +173,13 @@ function handleDelete(path: string) {
 
 function handleRename(oldPath: string, newPath: string) {
   if (oldPath === newPath) return
-  const isBin = rawVFS?.isBinary(oldPath)
-  if (isBin) {
-    const bytes = rawVFS?.readFileAsBytes(oldPath)
-    rawVFS?.setFile(newPath, bytes ?? new Uint8Array())
-  } else {
-    const content = rawVFS?.readFileAsString(oldPath)
-    rawVFS?.setFile(newPath, content ?? '')
-  }
-  rawVFS?.deleteFile(oldPath)
+  rawVFS?.renameNode(oldPath, newPath)
   if (activeFile.value === oldPath) activeFile.value = newPath
   if (mainFile.value === oldPath) setMainFile(newPath)
+}
+
+function handleAddDir(path: string) {
+  rawVFS?.mkdir(path)
 }
 
 function handleSetMain(path: string) {
@@ -263,6 +259,7 @@ onMounted(() => {
         :trigger-rename="triggerRename"
         @select="handleSelect"
         @add="handleAdd"
+        @add-dir="handleAddDir"
         @delete="handleDelete"
         @rename="handleRename"
         @set-main="handleSetMain"

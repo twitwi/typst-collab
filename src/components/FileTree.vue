@@ -27,6 +27,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [path: string]
   add: [path: string]
+  addDir: [path: string]
   delete: [path: string]
   rename: [oldPath: string, newPath: string]
   setMain: [path: string]
@@ -36,6 +37,10 @@ const emit = defineEmits<{
 const adding = ref(false)
 const newPath = ref('')
 const addInputRef = ref<HTMLInputElement | null>(null)
+
+const addingDir = ref(false)
+const newDirPath = ref('')
+const addDirInputRef = ref<HTMLInputElement | null>(null)
 
 const popoverPath = ref<string | null>(null)
 
@@ -53,12 +58,15 @@ function buildTree(paths: string[], mainFile: string): TreeNode[] {
   const root: TreeNode[] = []
 
   for (const fullPath of paths) {
-    const parts = fullPath.split('/')
+    const isDirEntry = fullPath.endsWith('/')
+    const cleanPath = isDirEntry ? fullPath.slice(0, -1) : fullPath
+    const parts = cleanPath.split('/')
     let currentLevel = root
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]
-      const isFile = i === parts.length - 1
+      const isLast = i === parts.length - 1
+      const isFile = isLast && !isDirEntry
       const nodePath = parts.slice(0, i + 1).join('/')
 
       if (isFile) {
@@ -180,6 +188,27 @@ function submitAdd() {
   newPath.value = ''
 }
 
+function startAddDir() {
+  addingDir.value = true
+  newDirPath.value = ''
+  adding.value = false
+  nextTick(() => addDirInputRef.value?.focus())
+}
+
+function cancelAddDir() {
+  addingDir.value = false
+  newDirPath.value = ''
+}
+
+function submitAddDir() {
+  const path = newDirPath.value.trim()
+  if (path) {
+    emit('addDir', path)
+  }
+  addingDir.value = false
+  newDirPath.value = ''
+}
+
 function togglePopover(path: string) {
   popoverPath.value = popoverPath.value === path ? null : path
 }
@@ -285,7 +314,10 @@ onUnmounted(() => {
   <div data-ft-root class="file-tree">
     <div class="tree-header">
       <span class="tree-title">Files</span>
-      <button class="tree-btn" title="Add file" @click="startAdd()">＋</button>
+      <div class="header-actions">
+        <button class="tree-btn" title="Add folder" @click="startAddDir()">＋📁</button>
+        <button class="tree-btn" title="Add file" @click="startAdd()">＋📄</button>
+      </div>
     </div>
 
     <div v-if="adding" class="add-row">
@@ -297,6 +329,18 @@ onUnmounted(() => {
         @keydown.enter="submitAdd()"
         @keydown.escape="cancelAdd()"
         @blur="cancelAdd()"
+      />
+    </div>
+
+    <div v-if="addingDir" class="add-row">
+      <input
+        ref="addDirInputRef"
+        v-model="newDirPath"
+        class="add-input"
+        placeholder="folder name"
+        @keydown.enter="submitAddDir()"
+        @keydown.escape="cancelAddDir()"
+        @blur="cancelAddDir()"
       />
     </div>
 
@@ -312,14 +356,29 @@ onUnmounted(() => {
         }"
         :style="{ paddingLeft: node.depth * 16 + 4 + 'px' }"
       >
-        <div
-          v-if="node.type === 'directory'"
-          class="node-label dir-label"
-          @click="toggleDir(node)"
-        >
-          <span class="node-icon">{{ getIcon(node) }}</span>
-          <span class="node-name">{{ node.name }}/</span>
-        </div>
+        <template v-if="node.type === 'directory'">
+          <div
+            class="node-label dir-label"
+            @click="toggleDir(node)"
+          >
+            <span class="node-icon">{{ getIcon(node) }}</span>
+            <span class="node-name">{{ node.name }}/</span>
+          </div>
+          <div class="node-actions" @click.stop>
+            <button
+              class="more-btn"
+              title="More"
+              @click="togglePopover(node.path)"
+            >⋯</button>
+            <div
+              v-if="popoverPath === node.path"
+              class="popover"
+            >
+              <button class="popover-item" @click.stop="startRename(node.path)">Rename</button>
+              <button class="popover-item danger" @click.stop="openDeleteConfirm(node.path)">Delete</button>
+            </div>
+          </div>
+        </template>
 
         <template v-else-if="renamingPath === node.path">
           <input
@@ -412,6 +471,10 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 600;
   color: #a6adc8;
+}
+.header-actions {
+  display: flex;
+  gap: 2px;
 }
 .tree-btn {
   background: none;
@@ -511,7 +574,8 @@ onUnmounted(() => {
   flex-shrink: 0;
   line-height: 1;
 }
-.file-node:hover .more-btn {
+.file-node:hover .more-btn,
+.dir-node:hover .more-btn {
   opacity: 1;
 }
 .more-btn:hover {
