@@ -176,6 +176,7 @@ onMounted(() => {
           v-if="vfsAdapter"
           :vfs="vfsAdapter"
           :change-key="vfsVersion"
+          :active-file="activeFile"
         />
       </div>
     </div>

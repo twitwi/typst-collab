@@ -34,7 +34,7 @@ export function useTypst() {
     }
   }
 
-  async function compileFromVFS(vfs: VFSAdapter) {
+  async function compileFromVFS(vfs: VFSAdapter, entryFile = 'main.typ') {
     compiling.value = true
     error.value = null
     try {
@@ -52,7 +52,7 @@ export function useTypst() {
         }
       }
 
-      const svg = await $typst.svg({ mainFilePath: '/main.typ' })
+      const svg = await $typst.svg({ mainFilePath: '/' + entryFile })
       svgContent.value = svg
     } catch (e: any) {
       error.value = e.message || String(e)
