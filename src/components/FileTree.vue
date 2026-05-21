@@ -352,6 +352,10 @@ onUnmounted(() => {
                 class="popover-item"
                 @click.stop="handleSetMain(node.path)"
               >Set as main</button>
+              <span
+                v-else
+                class="popover-item disabled"
+              >Main file</span>
               <button class="popover-item danger" @click.stop="openDeleteConfirm(node.path)">Delete</button>
             </div>
           </div>
@@ -536,6 +540,13 @@ onUnmounted(() => {
 }
 .popover-item.danger:hover {
   background: #f38ba822;
+}
+.popover-item.disabled {
+  color: #585b70;
+  cursor: default;
+}
+.popover-item.disabled:hover {
+  background: transparent;
 }
 .confirm-overlay {
   position: fixed;
