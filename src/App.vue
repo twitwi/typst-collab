@@ -174,8 +174,31 @@ function handleDelete(path: string) {
 function handleRename(oldPath: string, newPath: string) {
   if (oldPath === newPath) return
   rawVFS?.renameNode(oldPath, newPath)
-  if (activeFile.value === oldPath) activeFile.value = newPath
-  if (mainFile.value === oldPath) setMainFile(newPath)
+  if (activeFile.value === oldPath) {
+    activeFile.value = newPath
+  } else if (activeFile.value.startsWith(oldPath + '/')) {
+    activeFile.value = newPath + activeFile.value.slice(oldPath.length)
+  }
+  if (mainFile.value === oldPath) {
+    setMainFile(newPath)
+  } else if (mainFile.value.startsWith(oldPath + '/')) {
+    setMainFile(newPath + mainFile.value.slice(oldPath.length))
+  }
+}
+
+function handleMove(oldPath: string, newPath: string) {
+  if (oldPath === newPath) return
+  rawVFS?.renameNode(oldPath, newPath)
+  if (activeFile.value === oldPath) {
+    activeFile.value = newPath
+  } else if (activeFile.value.startsWith(oldPath + '/')) {
+    activeFile.value = newPath + activeFile.value.slice(oldPath.length)
+  }
+  if (mainFile.value === oldPath) {
+    setMainFile(newPath)
+  } else if (mainFile.value.startsWith(oldPath + '/')) {
+    setMainFile(newPath + mainFile.value.slice(oldPath.length))
+  }
 }
 
 function handleAddDir(path: string) {
@@ -262,6 +285,7 @@ onMounted(() => {
         @add-dir="handleAddDir"
         @delete="handleDelete"
         @rename="handleRename"
+        @move="handleMove"
         @set-main="handleSetMain"
         @rename-started="handleRenameStarted"
       />

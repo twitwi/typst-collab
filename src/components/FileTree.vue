@@ -30,6 +30,7 @@ const emit = defineEmits<{
   addDir: [path: string]
   delete: [path: string]
   rename: [oldPath: string, newPath: string]
+  move: [oldPath: string, newPath: string]
   setMain: [path: string]
   renameStarted: []
 }>()
@@ -50,11 +51,16 @@ const renameValue = ref('')
 const deletePath = ref<string | null>(null)
 const deleteConfirmRef = ref<HTMLDivElement | null>(null)
 
-const tree = computed(() => buildTree(props.fileList, props.mainFile))
+const dragOverPath = ref<string | null>(null)
+let dragOverTimer: ReturnType<typeof setTimeout> | null = null
+
+const collapsedDirs = ref(new Set<string>())
+
+const tree = computed(() => buildTree(props.fileList, props.mainFile, collapsedDirs.value))
 
 const flatTree = computed(() => flattenTree(tree.value))
 
-function buildTree(paths: string[], mainFile: string): TreeNode[] {
+function buildTree(paths: string[], mainFile: string, collapsed: Set<string>): TreeNode[] {
   const root: TreeNode[] = []
 
   for (const fullPath of paths) {
@@ -87,7 +93,7 @@ function buildTree(paths: string[], mainFile: string): TreeNode[] {
             path: nodePath,
             type: 'directory',
             children: [],
-            expanded: true,
+            expanded: !collapsed.has(nodePath),
           }
           currentLevel.push(dir)
         }
@@ -151,10 +157,13 @@ function getParentDir(path: string): TreeNode | null {
 }
 
 function toggleDir(node: FlatNode) {
-  const target = findNode(tree.value, node.path)
-  if (target && target.type === 'directory') {
-    target.expanded = !target.expanded
+  const s = new Set(collapsedDirs.value)
+  if (s.has(node.path)) {
+    s.delete(node.path)
+  } else {
+    s.add(node.path)
   }
+  collapsedDirs.value = s
 }
 
 function findNode(nodes: TreeNode[], path: string): TreeNode | null {
@@ -280,6 +289,75 @@ function handleSetMain(path: string) {
   popoverPath.value = null
 }
 
+function onDragStart(event: DragEvent, path: string) {
+  clearDragState()
+  event.dataTransfer?.setData('text/plain', path)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragOver(event: DragEvent, path: string) {
+  const node = findNode(tree.value, path)
+  if (!node || node.type !== 'directory') return
+  event.preventDefault()
+  event.stopPropagation()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragOverPath.value = path
+  if (dragOverTimer) clearTimeout(dragOverTimer)
+  dragOverTimer = setTimeout(() => {
+    const s = new Set(collapsedDirs.value)
+    s.delete(path)
+    collapsedDirs.value = s
+    dragOverTimer = null
+  }, 500)
+}
+
+function onDragLeave(_event: DragEvent, path: string) {
+  if (dragOverPath.value === path) dragOverPath.value = null
+  if (dragOverTimer) {
+    clearTimeout(dragOverTimer)
+    dragOverTimer = null
+  }
+}
+
+function onDrop(event: DragEvent, targetPath: string) {
+  event.preventDefault()
+  event.stopPropagation()
+  clearDragState()
+  const draggedPath = event.dataTransfer?.getData('text/plain')
+  if (!draggedPath) return
+  if (draggedPath === targetPath) return
+  if (targetPath.startsWith(draggedPath + '/')) return
+  const name = draggedPath.split('/').pop()!
+  emit('move', draggedPath, targetPath ? `${targetPath}/${name}` : name)
+}
+
+function onRootDragOver(event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+
+function onRootDrop(event: DragEvent) {
+  event.preventDefault()
+  clearDragState()
+  const draggedPath = event.dataTransfer?.getData('text/plain')
+  if (!draggedPath) return
+  if (!draggedPath.includes('/')) return
+  const name = draggedPath.split('/').pop()!
+  emit('move', draggedPath, name)
+}
+
+function onDragEnd() {
+  clearDragState()
+}
+
+function clearDragState() {
+  dragOverPath.value = null
+  if (dragOverTimer) {
+    clearTimeout(dragOverTimer)
+    dragOverTimer = null
+  }
+}
+
 function getIcon(node: FlatNode): string {
   if (node.type === 'directory') return node.expanded ? '📂' : '📁'
   const ext = node.name.split('.').pop()?.toLowerCase()
@@ -344,7 +422,7 @@ onUnmounted(() => {
       />
     </div>
 
-    <div class="tree-list" @click.self="closePopover()">
+    <div class="tree-list" @click.self="closePopover()" @dragover="onRootDragOver" @drop="onRootDrop">
       <div
         v-for="node in flatTree"
         :key="node.path"
@@ -353,12 +431,19 @@ onUnmounted(() => {
           'dir-node': node.type === 'directory',
           'file-node': node.type === 'file',
           active: node.type === 'file' && node.path === activeFile,
+          'drag-over': node.type === 'directory' && dragOverPath === node.path,
         }"
         :style="{ paddingLeft: node.depth * 16 + 4 + 'px' }"
+        @dragover="onDragOver($event, node.path)"
+        @dragleave="onDragLeave($event, node.path)"
+        @drop="onDrop($event, node.path)"
+        @dragend="onDragEnd"
       >
         <template v-if="node.type === 'directory'">
           <div
             class="node-label dir-label"
+            draggable="true"
+            @dragstart="onDragStart($event, node.path)"
             @click="toggleDir(node)"
           >
             <span class="node-icon">{{ getIcon(node) }}</span>
@@ -396,6 +481,8 @@ onUnmounted(() => {
           <div
             class="node-label"
             :class="{ 'is-main': node.path === mainFile }"
+            draggable="true"
+            @dragstart="onDragStart($event, node.path)"
             @click="emit('select', node.path)"
           >
             <span class="node-icon">{{ getIcon(node) }}</span>
@@ -664,5 +751,17 @@ onUnmounted(() => {
 }
 .confirm-actions .danger:hover {
   background: #f38ba844;
+}
+.tree-node.drag-over {
+  background: rgba(137, 180, 250, 0.15);
+  outline: 1px dashed #89b4fa;
+  outline-offset: -1px;
+  border-radius: 3px;
+}
+.node-label[draggable="true"] {
+  cursor: grab;
+}
+.node-label[draggable="true"]:active {
+  cursor: grabbing;
 }
 </style>
