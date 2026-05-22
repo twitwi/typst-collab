@@ -359,7 +359,7 @@ function clearDragState() {
 }
 
 function getIcon(node: FlatNode): string {
-  if (node.type === 'directory') return node.expanded ? '📂' : '📁'
+  if (node.type === 'directory') return '📂'
   const ext = node.name.split('.').pop()?.toLowerCase()
   if (ext === 'typ') return '📄'
   if (ext === 'bib') return '📚'
@@ -446,6 +446,7 @@ onUnmounted(() => {
             @dragstart="onDragStart($event, node.path)"
             @click="toggleDir(node)"
           >
+            <span class="chevron">{{ node.expanded ? '▼' : '▶' }}</span>
             <span class="node-icon">{{ getIcon(node) }}</span>
             <span class="node-name">{{ node.name }}/</span>
           </div>
@@ -640,6 +641,13 @@ onUnmounted(() => {
   font-size: 12px;
   flex-shrink: 0;
 }
+.chevron {
+  font-size: 10px;
+  color: #6c7086;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
 .node-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -653,19 +661,17 @@ onUnmounted(() => {
 .more-btn {
   background: none;
   border: none;
-  color: #585b70;
+  color: #6c7086;
   cursor: pointer;
   font-size: 14px;
   padding: 2px 6px;
-  opacity: 0;
+  opacity: 0.3;
   flex-shrink: 0;
   line-height: 1;
 }
 .file-node:hover .more-btn,
 .dir-node:hover .more-btn {
   opacity: 1;
-}
-.more-btn:hover {
   color: #cdd6f4;
 }
 .popover {
