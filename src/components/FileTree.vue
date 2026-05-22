@@ -15,6 +15,7 @@ interface FlatNode {
   type: 'file' | 'directory'
   depth: number
   expanded: boolean
+  isEmpty?: boolean
 }
 
 const props = defineProps<{
@@ -128,12 +129,14 @@ function collectDirChildren(nodes: TreeNode[]): TreeNode[][] {
 function flattenTree(nodes: TreeNode[], depth = 0): FlatNode[] {
   const result: FlatNode[] = []
   for (const node of nodes) {
+    const isEmpty = node.type === 'directory' && node.children.length === 0
     result.push({
       name: node.name,
       path: node.path,
       type: node.type,
       depth,
       expanded: node.expanded,
+      isEmpty,
     })
     if (node.type === 'directory' && node.expanded) {
       result.push(...flattenTree(node.children, depth + 1))
@@ -320,6 +323,8 @@ function onDragLeave(_event: DragEvent, path: string) {
 }
 
 function onDrop(event: DragEvent, targetPath: string) {
+  const node = findNode(tree.value, targetPath)
+  if (!node || node.type !== 'directory') return
   event.preventDefault()
   event.stopPropagation()
   clearDragState()
@@ -442,12 +447,13 @@ onUnmounted(() => {
         <template v-if="node.type === 'directory'">
           <div
             class="node-label dir-label"
+            :class="{ 'empty-dir': node.isEmpty }"
             draggable="true"
             @dragstart="onDragStart($event, node.path)"
             @click="toggleDir(node)"
           >
-            <span class="chevron">{{ node.expanded ? '▼' : '▶' }}</span>
             <span class="node-icon">{{ getIcon(node) }}</span>
+            <span class="chevron">{{ node.expanded ? '▼' : '▶' }}</span>
             <span class="node-name">{{ node.name }}/</span>
           </div>
           <div class="node-actions" @click.stop>
@@ -647,6 +653,9 @@ onUnmounted(() => {
   flex-shrink: 0;
   width: 14px;
   text-align: center;
+}
+.empty-dir .node-icon {
+  opacity: 0.4;
 }
 .node-name {
   overflow: hidden;
