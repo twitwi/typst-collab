@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, shallowRef, onMounted } from 'vue'
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
 import type { CompatibleVFS } from './composables/useCompatibleVFS'
+import type { TypstProject, TypstHighlightingController } from '@vedivad/codemirror-typst'
+import { TypstAnalyzer, TypstFormatter } from '@vedivad/codemirror-typst'
+import tinymistWasmUrl from 'tinymist-web/pkg/tinymist_bg.wasm?url'
 import FileTree from './components/FileTree.vue'
 import EditorPane from './components/EditorPane.vue'
 import PreviewPane from './components/PreviewPane.vue'
@@ -21,6 +24,9 @@ const triggerRename = ref<string | null>(null)
 
 let rawVFS: CompatibleVFS | null = null
 let vfsAdapter: VFSAdapter | null = null
+const lspProject = shallowRef<TypstProject>()
+const lspFormatter = shallowRef<TypstFormatter>()
+const lspHighlighting = shallowRef<TypstHighlightingController>()
 
 const vfsVersion = computed(() => rawVFS?.version.value ?? 0)
 
@@ -111,7 +117,7 @@ function initialize(addr: string) {
   connect()
 }
 
-watch(vfsReady, (ready) => {
+watch(vfsReady, async (ready) => {
   if (!ready) return
   const vfs = getVFS()
   rawVFS = vfs
@@ -146,6 +152,28 @@ This is a *collaborative* document.
     activeFile.value = 'main.typ'
   } else if (!list.includes(activeFile.value)) {
     activeFile.value = list[0]
+  }
+
+  try {
+    const { createTypstHighlighting, TypstProject, TypstCompiler } = await import('@vedivad/codemirror-typst')
+    const [analyzer, compiler, highlighting] = await Promise.all([
+      TypstAnalyzer.create({ wasmUrl: tinymistWasmUrl }),
+      TypstCompiler.create(),
+      createTypstHighlighting({
+        theme: 'catppuccin-mocha',
+        themes: { 'catppuccin-mocha': 'catppuccin-mocha' },
+      }),
+    ])
+    lspFormatter.value = await TypstFormatter.create({ tab_spaces: 2, max_width: 80 })
+    const project = new TypstProject({ compiler, analyzer })
+    for (const file of vfs.listFiles()) {
+      const content = vfs.readFileAsString(file)
+      if (content !== null) await project.setText('/' + file, content)
+    }
+    lspProject.value = project
+    lspHighlighting.value = highlighting
+  } catch (e) {
+    console.warn('Typst LSP init failed:', e)
   }
 })
 
@@ -305,6 +333,10 @@ onMounted(() => {
           :key="activeFile"
           :ytext="currentYText"
           :awareness="awareness"
+          :active-file="activeFile"
+          :project="lspProject"
+          :formatter="lspFormatter"
+          :highlighting="lspHighlighting"
           @paste-image="handlePasteImage"
         />
         <div v-else class="empty-editor">Select or create a file</div>

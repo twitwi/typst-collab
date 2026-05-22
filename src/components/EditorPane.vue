@@ -7,10 +7,16 @@ import { defaultKeymap, historyKeymap } from '@codemirror/commands'
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { yCollab } from 'y-codemirror.next'
 import type * as Y from 'yjs'
+import type { TypstProject, TypstFormatter, TypstHighlightingController } from '@vedivad/codemirror-typst'
+import { createTypstSetup, typstFilePath } from '@vedivad/codemirror-typst'
 
 const props = defineProps<{
   ytext: Y.Text
   awareness: any
+  activeFile?: string
+  project?: TypstProject
+  formatter?: TypstFormatter
+  highlighting?: TypstHighlightingController
 }>()
 
 const emit = defineEmits<{
@@ -28,19 +34,32 @@ function buildEditor(ytext: Y.Text) {
   }
   if (!editorRef.value) return
 
+  const extensions = [
+    basicSetup,
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+    syntaxHighlighting(defaultHighlightStyle),
+    yCollab(ytext, props.awareness),
+    typstFilePath.of('/' + (props.activeFile || 'main.typ')),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        emit('change', update.state.doc.toString())
+      }
+    }),
+  ]
+
+  if (props.project) {
+    const setup = createTypstSetup({
+      project: props.project,
+      sync: 'external',
+      highlighting: props.highlighting,
+      formatter: props.formatter ? { instance: props.formatter } : undefined,
+    })
+    extensions.push(...setup)
+  }
+
   const state = EditorState.create({
     doc: ytext.toString(),
-    extensions: [
-      basicSetup,
-      keymap.of([...defaultKeymap, ...historyKeymap]),
-      syntaxHighlighting(defaultHighlightStyle),
-      yCollab(ytext, props.awareness),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged) {
-          emit('change', update.state.doc.toString())
-        }
-      }),
-    ],
+    extensions,
   })
 
   view = new EditorView({ state, parent: editorRef.value })
@@ -85,6 +104,14 @@ watch(
   }
 )
 
+watch(
+  () => props.project,
+  (project, prev) => {
+    if (project !== prev && props.ytext) buildEditor(props.ytext)
+  },
+  { once: true }
+)
+
 onUnmounted(() => {
   editorRef.value?.removeEventListener('paste', onPaste)
   if (view) view.destroy()
@@ -121,5 +148,42 @@ onUnmounted(() => {
 }
 .editor-pane :deep(.cm-focused .cm-selectionBackground) {
   background: #45475a !important;
+}
+.editor-pane :deep(.cm-tooltip) {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  color: #cdd6f4;
+}
+.editor-pane :deep(.cm-tooltip-autocomplete) {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+}
+.editor-pane :deep(.cm-tooltip-autocomplete ul li[aria-selected]) {
+  background: #313244;
+  color: #cdd6f4;
+}
+.editor-pane :deep(.cm-completionLabel) {
+  color: #cdd6f4;
+}
+.editor-pane :deep(.cm-completionDetail) {
+  color: #a6adc8;
+}
+.editor-pane :deep(.cm-completionMatchedText) {
+  color: #89b4fa;
+}
+.editor-pane :deep(.cm-diagnostic) {
+  border-left: 3px solid #f38ba8;
+}
+.editor-pane :deep(.cm-diagnostic-error) {
+  border-left-color: #f38ba8;
+}
+.editor-pane :deep(.cm-diagnostic-warning) {
+  border-left-color: #f9e2af;
+}
+.editor-pane :deep(.cm-diagnostic-info) {
+  border-left-color: #89b4fa;
+}
+.editor-pane :deep(.cm-lintRange-error) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath fill='%23f38ba8' d='m0 0 L6 3 M0 3 L6 0' style='stroke:%23f38ba8;stroke-width:0.5'/%3E%3C/svg%3E");
 }
 </style>
