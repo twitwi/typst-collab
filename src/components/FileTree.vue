@@ -53,6 +53,8 @@ const deletePath = ref<string | null>(null)
 const deleteConfirmRef = ref<HTMLDivElement | null>(null)
 
 const dragOverPath = ref<string | null>(null)
+const isDragging = ref(false)
+const dragOverHeader = ref(false)
 let dragOverTimer: ReturnType<typeof setTimeout> | null = null
 
 const collapsedDirs = ref(new Set<string>())
@@ -293,6 +295,7 @@ function handleSetMain(path: string) {
 }
 
 function onDragStart(event: DragEvent, path: string) {
+  isDragging.value = true
   clearDragState()
   event.dataTransfer?.setData('text/plain', path)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
@@ -355,7 +358,19 @@ function onDragEnd() {
   clearDragState()
 }
 
+function onHeaderDragEnter() {
+  dragOverHeader.value = true
+}
+
+function onHeaderDragLeave(event: DragEvent) {
+  if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) {
+    dragOverHeader.value = false
+  }
+}
+
 function clearDragState() {
+  isDragging.value = false
+  dragOverHeader.value = false
   dragOverPath.value = null
   if (dragOverTimer) {
     clearTimeout(dragOverTimer)
@@ -395,8 +410,15 @@ onUnmounted(() => {
 
 <template>
   <div data-ft-root class="file-tree">
-    <div class="tree-header">
-      <span class="tree-title">Files</span>
+    <div
+      class="tree-header"
+      :class="{ 'is-dragging': isDragging, 'drop-hover': dragOverHeader }"
+      @dragenter.prevent="onHeaderDragEnter"
+      @dragleave="onHeaderDragLeave"
+      @dragover.prevent="onRootDragOver"
+      @drop.prevent="onRootDrop"
+    >
+      <span class="tree-title">{{ isDragging ? 'Drop here ↖' : 'Files' }}</span>
       <div class="header-actions">
         <button class="tree-btn" title="Add folder" @click="startAddDir()">＋📁</button>
         <button class="tree-btn" title="Add file" @click="startAdd()">＋📄</button>
@@ -553,6 +575,7 @@ onUnmounted(() => {
   min-width: 180px;
   max-width: 260px;
   overflow: hidden;
+  position: relative;
 }
 .tree-header {
   display: flex;
@@ -778,5 +801,17 @@ onUnmounted(() => {
 }
 .node-label[draggable="true"]:active {
   cursor: grabbing;
+}
+.tree-header.is-dragging {
+  border-bottom-color: #89b4fa;
+}
+.tree-header.drop-hover {
+  background: rgba(137, 180, 250, 0.12);
+  border-bottom-color: #89b4fa;
+  outline: 1px dashed #89b4fa;
+  outline-offset: -1px;
+}
+.tree-header.is-dragging .tree-title {
+  color: #89b4fa;
 }
 </style>
