@@ -295,8 +295,8 @@ function handleSetMain(path: string) {
 }
 
 function onDragStart(event: DragEvent, path: string) {
-  isDragging.value = true
   clearDragState()
+  isDragging.value = true
   event.dataTransfer?.setData('text/plain', path)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
@@ -803,13 +803,13 @@ onUnmounted(() => {
   cursor: grabbing;
 }
 .tree-header.is-dragging {
-  border-bottom-color: #89b4fa;
-}
-.tree-header.drop-hover {
-  background: rgba(137, 180, 250, 0.12);
+  background: rgba(137, 180, 250, 0.08);
   border-bottom-color: #89b4fa;
   outline: 1px dashed #89b4fa;
   outline-offset: -1px;
+}
+.tree-header.is-dragging.drop-hover {
+  background: rgba(137, 180, 250, 0.18);
 }
 .tree-header.is-dragging .tree-title {
   color: #89b4fa;
