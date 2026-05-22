@@ -27,6 +27,8 @@ let vfsAdapter: VFSAdapter | null = null
 const lspProject = shallowRef<TypstProject>()
 const lspFormatter = shallowRef<TypstFormatter>()
 const lspHighlighting = shallowRef<TypstHighlightingController>()
+const lspTrackedPaths = new Set<string>()
+let syncingLsp = false
 
 const vfsVersion = computed(() => rawVFS?.version.value ?? 0)
 
@@ -167,13 +169,51 @@ This is a *collaborative* document.
     lspFormatter.value = await TypstFormatter.create({ tab_spaces: 2, max_width: 80 })
     const project = new TypstProject({ compiler, analyzer })
     for (const file of vfs.listFiles()) {
-      const content = vfs.readFileAsString(file)
-      if (content !== null) await project.setText('/' + file, content)
+      const path = '/' + file
+      if (vfs.isBinary(file)) {
+        const bytes = vfs.readFileAsBytes(file)
+        if (bytes !== null) await project.setBinary(path, bytes)
+      } else {
+        const content = vfs.readFileAsString(file)
+        if (content !== null) await project.setText(path, content)
+      }
+      lspTrackedPaths.add(file)
     }
     lspProject.value = project
     lspHighlighting.value = highlighting
   } catch (e) {
     console.warn('Typst LSP init failed:', e)
+  }
+})
+
+watch(vfsVersion, async () => {
+  if (syncingLsp) return
+  syncingLsp = true
+  try {
+    const project = lspProject.value
+    const vfs = rawVFS
+    if (!project || !vfs) return
+    const current = new Set(vfs.listFiles())
+    for (const file of lspTrackedPaths) {
+      if (!current.has(file)) {
+        lspTrackedPaths.delete(file)
+        await project.remove('/' + file)
+      }
+    }
+    for (const file of current) {
+      if (lspTrackedPaths.has(file)) continue
+      const path = '/' + file
+      if (vfs.isBinary(file)) {
+        const bytes = vfs.readFileAsBytes(file)
+        if (bytes !== null) await project.setBinary(path, bytes)
+      } else {
+        const content = vfs.readFileAsString(file)
+        if (content !== null) await project.setText(path, content)
+      }
+      lspTrackedPaths.add(file)
+    }
+  } finally {
+    syncingLsp = false
   }
 })
 
