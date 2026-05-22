@@ -301,24 +301,38 @@ function onDragStart(event: DragEvent, path: string) {
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
 
+function highlightPath(path: string): string {
+  const node = findNode(tree.value, path)
+  if (!node) return ''
+  if (node.type === 'directory') return path
+  const parts = path.split('/')
+  parts.pop()
+  return parts.join('/')
+}
+
 function onDragOver(event: DragEvent, path: string) {
   const node = findNode(tree.value, path)
-  if (!node || node.type !== 'directory') return
-  event.preventDefault()
-  event.stopPropagation()
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
-  dragOverPath.value = path
+  if (!node) return
+  if (node.type === 'directory') {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  }
+  const hl = highlightPath(path)
   if (dragOverTimer) clearTimeout(dragOverTimer)
-  dragOverTimer = setTimeout(() => {
-    const s = new Set(collapsedDirs.value)
-    s.delete(path)
-    collapsedDirs.value = s
-    dragOverTimer = null
-  }, 500)
+  if (hl) {
+    dragOverTimer = setTimeout(() => {
+      const s = new Set(collapsedDirs.value)
+      s.delete(hl)
+      collapsedDirs.value = s
+      dragOverTimer = null
+    }, 500)
+  }
+  dragOverPath.value = hl
 }
 
 function onDragLeave(_event: DragEvent, path: string) {
-  if (dragOverPath.value === path) dragOverPath.value = null
+  if (dragOverPath.value === highlightPath(path)) dragOverPath.value = null
   if (dragOverTimer) {
     clearTimeout(dragOverTimer)
     dragOverTimer = null
@@ -327,16 +341,26 @@ function onDragLeave(_event: DragEvent, path: string) {
 
 function onDrop(event: DragEvent, targetPath: string) {
   const node = findNode(tree.value, targetPath)
-  if (!node || node.type !== 'directory') return
+  if (!node) return
   event.preventDefault()
   event.stopPropagation()
   clearDragState()
+  let dir = targetPath
+  if (node.type !== 'directory') {
+    const parts = targetPath.split('/')
+    parts.pop()
+    if (parts.length === 0) {
+      onRootDrop(event)
+      return
+    }
+    dir = parts.join('/')
+  }
   const draggedPath = event.dataTransfer?.getData('text/plain')
   if (!draggedPath) return
-  if (draggedPath === targetPath) return
-  if (targetPath.startsWith(draggedPath + '/')) return
+  if (draggedPath === dir) return
+  if (dir.startsWith(draggedPath + '/')) return
   const name = draggedPath.split('/').pop()!
-  emit('move', draggedPath, targetPath ? `${targetPath}/${name}` : name)
+  emit('move', draggedPath, `${dir}/${name}`)
 }
 
 function onRootDragOver(event: DragEvent) {
