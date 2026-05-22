@@ -50,7 +50,7 @@ function buildEditor(ytext: Y.Text) {
   if (props.project) {
     const setup = createTypstSetup({
       project: props.project,
-      sync: 'external',
+      sync: 'editor-driven',
       highlighting: props.highlighting,
       formatter: props.formatter ? { instance: props.formatter } : undefined,
     })

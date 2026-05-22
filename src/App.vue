@@ -167,7 +167,7 @@ This is a *collaborative* document.
       }),
     ])
     lspFormatter.value = await TypstFormatter.create({ tab_spaces: 2, max_width: 80 })
-    const project = new TypstProject({ compiler, analyzer })
+    const project = new TypstProject({ compiler, analyzer, autoCompile: { debounceMs: 300 } })
     for (const file of vfs.listFiles()) {
       const path = '/' + file
       if (vfs.isBinary(file)) {
@@ -179,6 +179,7 @@ This is a *collaborative* document.
       }
       lspTrackedPaths.add(file)
     }
+    lastFileListHash = vfs.listFiles().join('\n')
     lspProject.value = project
     lspHighlighting.value = highlighting
   } catch (e) {
@@ -186,14 +187,20 @@ This is a *collaborative* document.
   }
 })
 
+let lastFileListHash = ''
+
 watch(vfsVersion, async () => {
   if (syncingLsp) return
+  const project = lspProject.value
+  const vfs = rawVFS
+  if (!project || !vfs) return
+  const list = vfs.listFiles()
+  const hash = list.join('\n')
+  if (hash === lastFileListHash) return
+  lastFileListHash = hash
   syncingLsp = true
   try {
-    const project = lspProject.value
-    const vfs = rawVFS
-    if (!project || !vfs) return
-    const current = new Set(vfs.listFiles())
+    const current = new Set(list)
     for (const file of lspTrackedPaths) {
       if (!current.has(file)) {
         lspTrackedPaths.delete(file)
