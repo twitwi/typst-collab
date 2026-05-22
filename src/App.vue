@@ -30,7 +30,10 @@ const lspHighlighting = shallowRef<TypstHighlightingController>()
 const lspTrackedPaths = new Set<string>()
 let syncingLsp = false
 
-const vfsVersion = computed(() => rawVFS?.version.value ?? 0)
+const vfsVersion = computed(() => {
+  vfsReady.value
+  return rawVFS?.version.value ?? 0
+})
 
 const fileList = computed(() => {
   vfsVersion.value
