@@ -185,6 +185,15 @@ function findNode(nodes: TreeNode[], path: string): TreeNode | null {
 function startAdd() {
   adding.value = true
   newPath.value = ''
+  addingDir.value = false
+  nextTick(() => addInputRef.value?.focus())
+}
+
+function startAddInDir(dirPath: string) {
+  adding.value = true
+  newPath.value = dirPath ? dirPath + '/' : ''
+  addingDir.value = false
+  popoverPath.value = null
   nextTick(() => addInputRef.value?.focus())
 }
 
@@ -206,6 +215,14 @@ function startAddDir() {
   addingDir.value = true
   newDirPath.value = ''
   adding.value = false
+  nextTick(() => addDirInputRef.value?.focus())
+}
+
+function startAddDirInDir(dirPath: string) {
+  addingDir.value = true
+  newDirPath.value = dirPath ? dirPath + '/' : ''
+  adding.value = false
+  popoverPath.value = null
   nextTick(() => addDirInputRef.value?.focus())
 }
 
@@ -512,6 +529,9 @@ onUnmounted(() => {
               v-if="popoverPath === node.path"
               class="popover"
             >
+              <button class="popover-item" @click.stop="startAddInDir(node.path)">New file</button>
+              <button class="popover-item" @click.stop="startAddDirInDir(node.path)">New folder</button>
+              <div class="popover-sep" />
               <button class="popover-item" @click.stop="startRename(node.path)">Rename</button>
               <button class="popover-item danger" @click.stop="openDeleteConfirm(node.path)">Delete</button>
             </div>
@@ -768,6 +788,11 @@ onUnmounted(() => {
 }
 .popover-item.disabled:hover {
   background: transparent;
+}
+.popover-sep {
+  height: 1px;
+  background: #45475a;
+  margin: 4px 0;
 }
 .confirm-overlay {
   position: fixed;
