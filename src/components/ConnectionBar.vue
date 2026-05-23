@@ -7,6 +7,7 @@ const props = defineProps<{
   boxAddress: string
   myName: string
   myColor: string
+  forcedColor: string | null
 }>()
 
 const emit = defineEmits<{
@@ -14,6 +15,8 @@ const emit = defineEmits<{
   disconnect: []
   changeBox: []
   rename: [name: string]
+  setColor: [color: string]
+  clearColor: []
 }>()
 
 const editing = ref(false)
@@ -38,6 +41,12 @@ function commitEdit() {
 function cancelEdit() {
   editing.value = false
 }
+
+function onFocusOut(e: FocusEvent) {
+  const related = e.relatedTarget as HTMLElement | null
+  if (related?.closest('.edit-group')) return
+  commitEdit()
+}
 </script>
 
 <template>
@@ -55,15 +64,28 @@ function cancelEdit() {
     >
       {{ myName }} (you)
     </span>
-    <input
-      v-else
-      ref="inputEl"
-      v-model="editValue"
-      class="name-input"
-      @blur="commitEdit"
-      @keydown.enter="commitEdit"
-      @keydown.escape="cancelEdit"
-    />
+    <div v-else class="edit-group" @focusout="onFocusOut">
+      <input
+        ref="inputEl"
+        v-model="editValue"
+        class="name-input"
+        @keydown.enter="commitEdit"
+        @keydown.escape="cancelEdit"
+      />
+      <input
+        type="color"
+        class="color-picker"
+        :value="myColor"
+        :title="forcedColor ? 'Change color' : 'Set custom color'"
+        @input="emit('setColor', ($event.target as HTMLInputElement).value)"
+      />
+      <button
+        v-if="forcedColor"
+        class="color-reset"
+        title="Reset to name-based color"
+        @click="emit('clearColor')"
+      >↺</button>
+    </div>
     <span v-for="(u, i) in users" :key="i" class="user-badge" :style="{ background: u.color }">
       {{ u.name }}
     </span>
@@ -131,6 +153,12 @@ function cancelEdit() {
 .user-badge.me:hover {
   filter: brightness(1.2);
 }
+.edit-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .name-input {
   background: #333;
   border: 1px solid #89b4fa;
@@ -140,7 +168,38 @@ function cancelEdit() {
   border-radius: 3px;
   outline: none;
   width: 100px;
+}
+.color-picker {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #555;
+  border-radius: 3px;
+  cursor: pointer;
+  background: none;
   flex-shrink: 0;
+}
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+.color-reset {
+  background: none;
+  border: 1px solid #555;
+  color: #a6adc8;
+  font-size: 12px;
+  padding: 0 3px;
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.color-reset:hover {
+  border-color: #cdd6f4;
+  color: #cdd6f4;
 }
 .action-btn {
   background: #333;

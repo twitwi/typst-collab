@@ -15,7 +15,7 @@ import BoxInput from './components/BoxInput.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
-const { connected, users, vfsReady, mainFile, myName, myColor, awareness, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName } = useCollab()
+const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
 
 const showBoxInput = ref(false)
 const boxAddress = ref('')
@@ -349,10 +349,13 @@ onMounted(() => {
       :box-address="boxAddress"
       :my-name="myName"
       :my-color="myColor"
+      :forced-color="forcedColor"
       @connect="connect()"
       @disconnect="disconnect()"
       @change-box="handleChangeBox"
       @rename="setMyName"
+      @set-color="setForcedColor"
+      @clear-color="() => setForcedColor(null)"
     />
 
     <div v-if="vfsReady" class="panes" @paste="handlePanePaste">

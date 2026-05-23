@@ -11,6 +11,7 @@ const NAMES = [
 ]
 
 const LS_NAME_KEY = 'typst-collab:user-name'
+const LS_COLOR_KEY = 'typst-collab:user-color'
 const randItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 function hashString(s: string): number {
@@ -32,7 +33,8 @@ export function useCollab() {
   const vfsReady = ref(false)
   const mainFile = ref('main.typ')
   const myName = ref(localStorage.getItem(LS_NAME_KEY) || randItem(NAMES))
-  const myColor = computed(() => nameToColor(myName.value))
+  const forcedColor = ref<string | null>(localStorage.getItem(LS_COLOR_KEY))
+  const myColor = computed(() => forcedColor.value || nameToColor(myName.value))
 
   const awareness = ref<any>(null)
   let ydoc: Y.Doc | null = null
@@ -70,9 +72,9 @@ export function useCollab() {
     const aw = provider.awareness
     awareness.value = aw
     aw.setLocalStateField('user', { name: myName.value, color: myColor.value })
-    watch(myName, (name) => {
-      localStorage.setItem(LS_NAME_KEY, name)
-      aw.setLocalStateField('user', { name, color: myColor.value })
+    watch([myName, forcedColor], () => {
+      localStorage.setItem(LS_NAME_KEY, myName.value)
+      aw.setLocalStateField('user', { name: myName.value, color: myColor.value })
     })
 
     aw.on('change', () => {
@@ -125,6 +127,15 @@ export function useCollab() {
     myName.value = name
   }
 
+  function setForcedColor(c: string | null) {
+    forcedColor.value = c
+  }
+
+  watch(forcedColor, (c) => {
+    if (c) localStorage.setItem(LS_COLOR_KEY, c)
+    else localStorage.removeItem(LS_COLOR_KEY)
+  })
+
   function getYDoc(): Y.Doc | null {
     return ydoc
   }
@@ -140,6 +151,7 @@ export function useCollab() {
     mainFile,
     myName,
     myColor,
+    forcedColor,
     awareness,
     initFromHash,
     connect,
@@ -147,6 +159,7 @@ export function useCollab() {
     getVFS,
     setMainFile,
     setMyName,
+    setForcedColor,
     getYDoc,
   }
 }
