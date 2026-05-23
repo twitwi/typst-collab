@@ -18,14 +18,14 @@ const emit = defineEmits<{
 
 const editing = ref(false)
 const editValue = ref('')
-let inputEl: HTMLInputElement | undefined
+const inputEl = ref<HTMLInputElement>()
 
 function startEdit() {
   editValue.value = props.myName
   editing.value = true
   nextTick(() => {
-    inputEl?.focus()
-    inputEl?.select()
+    inputEl.value?.focus()
+    inputEl.value?.select()
   })
 }
 
