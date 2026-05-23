@@ -1,15 +1,43 @@
 <script setup lang="ts">
+import { ref, nextTick } from 'vue'
+
 const props = defineProps<{
   connected: boolean
   users: { name: string; color: string }[]
   boxAddress: string
+  myName: string
+  myColor: string
 }>()
 
 const emit = defineEmits<{
   connect: []
   disconnect: []
   changeBox: []
+  rename: [name: string]
 }>()
+
+const editing = ref(false)
+const editValue = ref('')
+let inputEl: HTMLInputElement | undefined
+
+function startEdit() {
+  editValue.value = props.myName
+  editing.value = true
+  nextTick(() => {
+    inputEl?.focus()
+    inputEl?.select()
+  })
+}
+
+function commitEdit() {
+  const v = editValue.value.trim()
+  if (v && v !== props.myName) emit('rename', v)
+  editing.value = false
+}
+
+function cancelEdit() {
+  editing.value = false
+}
 </script>
 
 <template>
@@ -19,6 +47,23 @@ const emit = defineEmits<{
       {{ connected ? 'Connected' : 'Disconnected' }}
     </span>
     <span class="box-address" :title="boxAddress">{{ boxAddress }}</span>
+    <span
+      v-if="!editing"
+      class="user-badge me"
+      :style="{ background: myColor }"
+      @click="startEdit"
+    >
+      {{ myName }} (you)
+    </span>
+    <input
+      v-else
+      ref="inputEl"
+      v-model="editValue"
+      class="name-input"
+      @blur="commitEdit"
+      @keydown.enter="commitEdit"
+      @keydown.escape="cancelEdit"
+    />
     <span v-for="(u, i) in users" :key="i" class="user-badge" :style="{ background: u.color }">
       {{ u.name }}
     </span>
@@ -76,6 +121,25 @@ const emit = defineEmits<{
   border-radius: 3px;
   font-size: 11px;
   color: #fff;
+  flex-shrink: 0;
+}
+.user-badge.me {
+  cursor: pointer;
+  outline: 1px dashed rgba(255,255,255,0.35);
+  outline-offset: 1px;
+}
+.user-badge.me:hover {
+  filter: brightness(1.2);
+}
+.name-input {
+  background: #333;
+  border: 1px solid #89b4fa;
+  color: #fff;
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  outline: none;
+  width: 100px;
   flex-shrink: 0;
 }
 .action-btn {

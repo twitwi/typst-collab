@@ -1,4 +1,4 @@
-import { ref, onUnmounted, type Ref } from 'vue'
+import { ref, watch, onUnmounted, type Ref } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { parseHash } from '../lib/hash'
@@ -14,6 +14,7 @@ const NAMES = [
   'Grace', 'Heidi', 'Ivan', 'Judy', 'Kevin', 'Linda',
 ]
 
+const LS_NAME_KEY = 'typst-collab:user-name'
 const randItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
 export function useCollab() {
@@ -21,7 +22,7 @@ export function useCollab() {
   const users = ref<{ name: string; color: string }[]>([])
   const vfsReady = ref(false)
   const mainFile = ref('main.typ')
-  const myName = randItem(NAMES)
+  const myName = ref(localStorage.getItem(LS_NAME_KEY) || randItem(NAMES))
   const myColor = randItem(COLORS)
 
   const awareness = ref<any>(null)
@@ -59,15 +60,20 @@ export function useCollab() {
 
     const aw = provider.awareness
     awareness.value = aw
-    aw.setLocalStateField('user', { name: myName, color: myColor })
+    aw.setLocalStateField('user', { name: myName.value, color: myColor })
+    watch(myName, (name) => {
+      localStorage.setItem(LS_NAME_KEY, name)
+      aw.setLocalStateField('user', { name, color: myColor })
+    })
 
     aw.on('change', () => {
       const states = aw.getStates()
       const list: { name: string; color: string }[] = []
-      states.forEach((state: any, _clientId: number) => {
+      states.forEach((state: any, clientId: number) => {
+        if (clientId === aw.clientID) return
         if (state.user) {
           list.push({
-            name: state.user.name || `User ${_clientId}`,
+            name: state.user.name || `User ${clientId}`,
             color: state.user.color || '#666',
           })
         }
@@ -106,6 +112,10 @@ export function useCollab() {
     mainFile.value = path
   }
 
+  function setMyName(name: string) {
+    myName.value = name
+  }
+
   function getYDoc(): Y.Doc | null {
     return ydoc
   }
@@ -119,12 +129,15 @@ export function useCollab() {
     users,
     vfsReady,
     mainFile,
+    myName,
+    myColor,
     awareness,
     initFromHash,
     connect,
     disconnect,
     getVFS,
     setMainFile,
+    setMyName,
     getYDoc,
   }
 }
