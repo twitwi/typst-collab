@@ -1,14 +1,10 @@
-import { ref, watch, onUnmounted, type Ref } from 'vue'
+import { ref, computed, watch, onUnmounted, type Ref } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { parseHash } from '../lib/hash'
 import { getY } from '../lib/ytools'
 import { useCompatibleVFS, ensureMapPath } from './useCompatibleVFS'
 
-const COLORS = [
-  '#f38ba8', '#a6e3a1', '#89b4fa', '#f9e2af',
-  '#fab387', '#94e2d5', '#cba6f7', '#eba0ac',
-]
 const NAMES = [
   'Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank',
   'Grace', 'Heidi', 'Ivan', 'Judy', 'Kevin', 'Linda',
@@ -17,13 +13,26 @@ const NAMES = [
 const LS_NAME_KEY = 'typst-collab:user-name'
 const randItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
 
+function hashString(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
+}
+
+function nameToColor(name: string): string {
+  const h = hashString(name) % 360
+  return `hsl(${h}, 70%, 35%)`
+}
+
 export function useCollab() {
   const connected = ref(false)
   const users = ref<{ name: string; color: string }[]>([])
   const vfsReady = ref(false)
   const mainFile = ref('main.typ')
   const myName = ref(localStorage.getItem(LS_NAME_KEY) || randItem(NAMES))
-  const myColor = randItem(COLORS)
+  const myColor = computed(() => nameToColor(myName.value))
 
   const awareness = ref<any>(null)
   let ydoc: Y.Doc | null = null
@@ -60,10 +69,10 @@ export function useCollab() {
 
     const aw = provider.awareness
     awareness.value = aw
-    aw.setLocalStateField('user', { name: myName.value, color: myColor })
+    aw.setLocalStateField('user', { name: myName.value, color: myColor.value })
     watch(myName, (name) => {
       localStorage.setItem(LS_NAME_KEY, name)
-      aw.setLocalStateField('user', { name, color: myColor })
+      aw.setLocalStateField('user', { name, color: myColor.value })
     })
 
     aw.on('change', () => {
