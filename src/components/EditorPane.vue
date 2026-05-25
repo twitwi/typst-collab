@@ -9,6 +9,7 @@ import { yCollab } from 'y-codemirror.next'
 import type * as Y from 'yjs'
 import type { TypstProject, TypstFormatter, TypstHighlightingController } from '@vedivad/codemirror-typst'
 import { createTypstSetup, typstFilePath } from '@vedivad/codemirror-typst'
+import { yaml } from '@codemirror/lang-yaml'
 
 const props = defineProps<{
   ytext: Y.Text
@@ -71,12 +72,14 @@ function buildEditor(ytext: Y.Text) {
   }
   if (!editorRef.value) return
 
+  const file = props.activeFile || 'main.typ'
+  const isYaml = /\.ya?ml$/i.test(file)
+
   const extensions = [
     basicSetup,
     keymap.of([...defaultKeymap, ...historyKeymap]),
     syntaxHighlighting(defaultHighlightStyle),
     yCollab(ytext, props.awareness),
-    typstFilePath.of('/' + (props.activeFile || 'main.typ')),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         emit('change', update.state.doc.toString())
@@ -87,14 +90,19 @@ function buildEditor(ytext: Y.Text) {
     }),
   ]
 
-  if (props.project) {
-    const setup = createTypstSetup({
-      project: props.project,
-      sync: 'editor-driven',
-      highlighting: props.highlighting,
-      formatter: props.formatter ? { instance: props.formatter } : undefined,
-    })
-    extensions.push(...setup)
+  if (isYaml) {
+    extensions.push(yaml())
+  } else {
+    extensions.push(typstFilePath.of('/' + file))
+    if (props.project) {
+      const setup = createTypstSetup({
+        project: props.project,
+        sync: 'editor-driven',
+        highlighting: props.highlighting,
+        formatter: props.formatter ? { instance: props.formatter } : undefined,
+      })
+      extensions.push(...setup)
+    }
   }
 
   const state = EditorState.create({
