@@ -30,6 +30,8 @@ function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'ArrowDown') { e.preventDefault(); selectedIndex.value = Math.min(selectedIndex.value + 1, filtered.value.length - 1); return }
   if (e.key === 'ArrowUp') { e.preventDefault(); selectedIndex.value = Math.max(selectedIndex.value - 1, 0); return }
   if (e.key === 'Enter' && filtered.value[selectedIndex.value]) {
+    e.preventDefault()
+    e.stopPropagation()
     emit('select', filtered.value[selectedIndex.value])
   }
 }
