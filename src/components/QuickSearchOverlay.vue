@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 const props = defineProps<{
   files: string[]
@@ -20,6 +20,8 @@ const filtered = computed(() => {
   const q = query.value.toLowerCase()
   return props.files.filter(f => f.toLowerCase().includes(q))
 })
+
+onMounted(() => { inputEl.value?.focus() })
 
 watch(filtered, () => { selectedIndex.value = 0 })
 
