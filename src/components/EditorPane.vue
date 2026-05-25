@@ -14,6 +14,7 @@ const props = defineProps<{
   ytext: Y.Text
   awareness: any
   activeFile?: string
+  fontSize?: string
   project?: TypstProject
   formatter?: TypstFormatter
   highlighting?: TypstHighlightingController
@@ -170,7 +171,7 @@ defineExpose({ focus })
 </script>
 
 <template>
-  <div ref="editorRef" class="editor-pane" />
+  <div ref="editorRef" class="editor-pane" :style="{ fontSize: props.fontSize }" />
 </template>
 
 <style scoped>

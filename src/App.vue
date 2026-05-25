@@ -23,6 +23,8 @@ const showQuickSearch = ref(false)
 const prevActiveFile = ref('')
 const boxAddress = ref('')
 const activeFile = ref('main.typ')
+const fontSize = ref(Number(localStorage.getItem('typst-collab:font-size')) || 14)
+watch(fontSize, (v) => localStorage.setItem('typst-collab:font-size', String(v)))
 const triggerRename = ref<string | null>(null)
 
 let rawVFS: CompatibleVFS | null = null
@@ -394,7 +396,13 @@ function onGlobalKeyDown(e: KeyboardEvent) {
       />
 
       <div class="pane editor-pane-wrapper">
-        <div class="pane-header">{{ activeFile }}</div>
+        <div class="pane-header">
+          <span class="pane-title">{{ activeFile }}</span>
+          <span class="font-size-control">
+            <input type="range" min="10" max="24" step="1" v-model.number="fontSize" />
+            <span class="font-size-value">{{ fontSize }}px</span>
+          </span>
+        </div>
         <div v-if="imageUrl" class="image-preview" @wheel.prevent="onImageWheel">
           <img
             :src="imageUrl"
@@ -410,6 +418,7 @@ function onGlobalKeyDown(e: KeyboardEvent) {
           :ytext="currentYText"
           :awareness="awareness"
           :active-file="activeFile"
+          :font-size="fontSize + 'px'"
           :project="lspProject"
           :formatter="lspFormatter"
           :highlighting="lspHighlighting"
@@ -486,11 +495,31 @@ html, body {
   overflow: hidden;
 }
 .pane-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 4px 12px;
   font-size: 12px;
   color: #a6adc8;
   border-bottom: 1px solid #313244;
   background: #181825;
+}
+.pane-title { flex: 1; }
+.font-size-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.font-size-control input[type="range"] {
+  width: 60px;
+  height: 4px;
+  accent-color: #89b4fa;
+  cursor: pointer;
+}
+.font-size-value {
+  width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .pane-divider {
   width: 4px;
