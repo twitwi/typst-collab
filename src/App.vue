@@ -20,6 +20,7 @@ const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awar
 
 const showBoxInput = ref(false)
 const showQuickSearch = ref(false)
+const prevActiveFile = ref('')
 const boxAddress = ref('')
 const activeFile = ref('main.typ')
 const triggerRename = ref<string | null>(null)
@@ -231,6 +232,7 @@ watch(vfsVersion, async () => {
 })
 
 function handleSelect(path: string) {
+  if (activeFile.value !== path) prevActiveFile.value = activeFile.value
   activeFile.value = path
   imageZoom.value = 1
 }
@@ -442,6 +444,7 @@ function onGlobalKeyDown(e: KeyboardEvent) {
       v-if="showQuickSearch && vfsAdapter"
       :files="vfsAdapter.listFiles()"
       :active-file="activeFile"
+      :prev-file="prevActiveFile"
       @select="(path) => { handleSelect(path); showQuickSearch = false; nextTick(() => (editorPaneRef as any)?.focus()) }"
       @close="showQuickSearch = false"
     />

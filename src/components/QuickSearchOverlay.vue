@@ -4,6 +4,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 const props = defineProps<{
   files: string[]
   activeFile: string
+  prevFile?: string
 }>()
 
 const emit = defineEmits<{
@@ -21,9 +22,21 @@ const filtered = computed(() => {
   return props.files.filter(f => f.toLowerCase().includes(q))
 })
 
-onMounted(() => { inputEl.value?.focus() })
+onMounted(() => {
+  inputEl.value?.focus()
+  if (!query.value && props.prevFile) {
+    const idx = props.files.indexOf(props.prevFile)
+    if (idx !== -1) selectedIndex.value = idx
+  }
+})
 
-watch(filtered, () => { selectedIndex.value = 0 })
+watch(filtered, () => {
+  if (!query.value && props.prevFile) {
+    const idx = props.files.indexOf(props.prevFile)
+    if (idx !== -1) { selectedIndex.value = idx; return }
+  }
+  selectedIndex.value = 0
+})
 
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Escape') { emit('close'); return }
