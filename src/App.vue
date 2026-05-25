@@ -26,6 +26,7 @@ const triggerRename = ref<string | null>(null)
 
 let rawVFS: CompatibleVFS | null = null
 let vfsAdapter: VFSAdapter | null = null
+const editorPaneRef = ref<InstanceType<typeof EditorPane>>()
 const lspProject = shallowRef<TypstProject>()
 const lspFormatter = shallowRef<TypstFormatter>()
 const lspHighlighting = shallowRef<TypstHighlightingController>()
@@ -401,6 +402,7 @@ function onGlobalKeyDown(e: KeyboardEvent) {
           <div class="zoom-label">{{ Math.round(imageZoom * 100) }}%</div>
         </div>
         <EditorPane
+          ref="editorPaneRef"
           v-else-if="currentYText && awareness"
           :key="activeFile"
           :ytext="currentYText"
@@ -440,7 +442,7 @@ function onGlobalKeyDown(e: KeyboardEvent) {
       v-if="showQuickSearch && vfsAdapter"
       :files="vfsAdapter.listFiles()"
       :active-file="activeFile"
-      @select="(path) => { handleSelect(path); showQuickSearch = false }"
+      @select="(path) => { handleSelect(path); showQuickSearch = false; nextTick(() => (editorPaneRef as any)?.focus()) }"
       @close="showQuickSearch = false"
     />
   </div>

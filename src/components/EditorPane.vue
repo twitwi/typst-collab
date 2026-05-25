@@ -116,6 +116,12 @@ onUnmounted(() => {
   editorRef.value?.removeEventListener('paste', onPaste)
   if (view) view.destroy()
 })
+
+function focus() {
+  view?.focus()
+}
+
+defineExpose({ focus })
 </script>
 
 <template>
