@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, shallowRef, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted } from 'vue'
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
@@ -12,12 +12,14 @@ import EditorPane from './components/EditorPane.vue'
 import PreviewPane from './components/PreviewPane.vue'
 import ConnectionBar from './components/ConnectionBar.vue'
 import BoxInput from './components/BoxInput.vue'
+import QuickSearchOverlay from './components/QuickSearchOverlay.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
 const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
 
 const showBoxInput = ref(false)
+const showQuickSearch = ref(false)
 const boxAddress = ref('')
 const activeFile = ref('main.typ')
 const triggerRename = ref<string | null>(null)
@@ -338,7 +340,21 @@ onMounted(() => {
   } else {
     showBoxInput.value = true
   }
+  window.addEventListener('keydown', onGlobalKeyDown)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeyDown)
+})
+
+function onGlobalKeyDown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+    if (showBoxInput.value) return
+    e.preventDefault()
+    showQuickSearch.value = true
+  }
+}
+
 </script>
 
 <template>
@@ -419,6 +435,13 @@ onMounted(() => {
       :model-value="boxAddress"
       @confirm="handleBoxConfirm"
       @cancel="handleBoxCancel"
+    />
+    <QuickSearchOverlay
+      v-if="showQuickSearch && vfsAdapter"
+      :files="vfsAdapter.listFiles()"
+      :active-file="activeFile"
+      @select="(path) => { handleSelect(path); showQuickSearch = false }"
+      @close="showQuickSearch = false"
     />
   </div>
 </template>

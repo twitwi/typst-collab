@@ -34,24 +34,26 @@ export function useTypst() {
     }
   }
 
+  async function setupVfs(vfs: VFSAdapter) {
+    const { $typst } = await import('@myriaddreamin/typst.ts')
+    $typst.resetShadow()
+    for (const filePath of vfs.listFiles()) {
+      if (vfs.isBinary(filePath)) {
+        const bytes = vfs.readFileAsBytes(filePath)
+        if (bytes) $typst.mapShadow('/' + filePath, bytes)
+      } else {
+        const content = vfs.readFileAsString(filePath)
+        if (content !== null) $typst.addSource('/' + filePath, content)
+      }
+    }
+    return $typst
+  }
+
   async function compileFromVFS(vfs: VFSAdapter, entryFile = 'main.typ') {
     compiling.value = true
     error.value = null
     try {
-      const { $typst } = await import('@myriaddreamin/typst.ts')
-
-      $typst.resetShadow()
-
-      for (const filePath of vfs.listFiles()) {
-        if (vfs.isBinary(filePath)) {
-          const bytes = vfs.readFileAsBytes(filePath)
-          if (bytes) $typst.mapShadow('/' + filePath, bytes)
-        } else {
-          const content = vfs.readFileAsString(filePath)
-          if (content !== null) $typst.addSource('/' + filePath, content)
-        }
-      }
-
+      const $typst = await setupVfs(vfs)
       const svg = await $typst.svg({ mainFilePath: '/' + entryFile })
       svgContent.value = svg
     } catch (e: any) {
@@ -62,5 +64,24 @@ export function useTypst() {
     }
   }
 
-  return { init, compileFromVFS, compiling, svgContent, error }
+  async function downloadPdf(vfs: VFSAdapter, entryFile = 'main.typ') {
+    try {
+      const $typst = await setupVfs(vfs)
+      const pdfBytes = await $typst.pdf({ mainFilePath: '/' + entryFile })
+      if (!pdfBytes) return
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = entryFile.replace(/\.typ$/, '') + '.pdf'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      error.value = e.message || String(e)
+    }
+  }
+
+  return { init, compileFromVFS, downloadPdf, compiling, svgContent, error }
 }

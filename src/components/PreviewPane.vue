@@ -9,7 +9,7 @@ const props = defineProps<{
   mainFile: string
 }>()
 
-const { init, compileFromVFS, compiling, svgContent, error } = useTypst()
+const { init, compileFromVFS, downloadPdf, compiling, svgContent, error } = useTypst()
 
 const autoRefresh = ref(true)
 const debounceMs = ref(500)
@@ -18,11 +18,18 @@ const debounceOptions = [200, 500, 1000, 2000]
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
-async function doCompile() {
-  const entry = props.vfs.listFiles().includes(props.mainFile)
+function resolveEntry() {
+  return props.vfs.listFiles().includes(props.mainFile)
     ? props.mainFile
     : 'main.typ'
-  await compileFromVFS(props.vfs, entry)
+}
+
+async function doCompile() {
+  await compileFromVFS(props.vfs, resolveEntry())
+}
+
+async function handleDownloadPdf() {
+  await downloadPdf(props.vfs, resolveEntry())
 }
 
 async function debouncedCompile() {
@@ -54,6 +61,7 @@ watch(autoRefresh, (on) => {
       <span>Preview</span>
       <span v-if="compiling" class="compiling-badge">compiling...</span>
       <div class="header-actions">
+        <button class="icon-btn" @click="handleDownloadPdf" title="Download PDF">PDF</button>
         <button class="icon-btn" @click="doCompile" title="Refresh preview">↻</button>
         <select v-if="autoRefresh" v-model="debounceMs" class="delay-select" title="Debounce delay">
           <option v-for="d in debounceOptions" :key="d" :value="d">{{ d }}ms</option>
