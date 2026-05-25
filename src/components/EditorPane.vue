@@ -26,6 +26,42 @@ const emit = defineEmits<{
 
 const editorRef = ref<HTMLDivElement | null>(null)
 let view: EditorView | null = null
+let currentFilePath = ''
+
+function saveCursorPosition() {
+  if (!view) return
+  try {
+    const sel = view.state.selection.main
+    sessionStorage.setItem(`cursor:${currentFilePath}`, JSON.stringify({
+      anchor: sel.anchor,
+      head: sel.head,
+    }))
+  } catch {}
+}
+
+function restoreCursorPosition() {
+  if (!view) return
+  try {
+    const raw = sessionStorage.getItem(`cursor:${currentFilePath}`)
+    if (raw === null) return
+    const { anchor, head } = JSON.parse(raw)
+    const docLen = view.state.doc.length
+    const a = Math.min(anchor, docLen)
+    const h = Math.min(head, docLen)
+
+    view.dispatch({
+      selection: { anchor: a, head: h },
+    })
+
+    requestAnimationFrame(() => {
+      if (!view) return
+      const coords = view.coordsAtPos(h)
+      if (coords) {
+        view.scrollDOM.scrollTop = coords.top - view.scrollDOM.clientHeight / 2
+      }
+    })
+  } catch {}
+}
 
 function buildEditor(ytext: Y.Text) {
   if (view) {
@@ -43,6 +79,9 @@ function buildEditor(ytext: Y.Text) {
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         emit('change', update.state.doc.toString())
+        saveCursorPosition()
+      } else if (!update.startState.selection.eq(update.state.selection)) {
+        saveCursorPosition()
       }
     }),
   ]
@@ -62,7 +101,10 @@ function buildEditor(ytext: Y.Text) {
     extensions,
   })
 
+  currentFilePath = props.activeFile || 'main.typ'
   view = new EditorView({ state, parent: editorRef.value })
+
+  restoreCursorPosition()
 }
 
 function onPaste(e: ClipboardEvent) {
@@ -114,7 +156,10 @@ watch(
 
 onUnmounted(() => {
   editorRef.value?.removeEventListener('paste', onPaste)
-  if (view) view.destroy()
+  if (view) {
+    saveCursorPosition()
+    view.destroy()
+  }
 })
 
 function focus() {
