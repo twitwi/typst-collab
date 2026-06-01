@@ -128,25 +128,13 @@ function initialize(addr: string) {
   connect()
 }
 
-watch(vfsReady, async (ready) => {
-  if (!ready) return
-  const vfs = getVFS()
-  rawVFS = vfs
-  vfsAdapter = {
-    listFiles: () => vfs.listFiles(),
-    readFileAsString: (p: string) => vfs.readFileAsString(p),
-    readFileAsBytes: (p: string) => vfs.readFileAsBytes(p),
-    isBinary: (p: string) => vfs.isBinary(p),
-  }
-
-  const list = vfs.listFiles()
-  if (list.length === 0) {
+function createDemoProject(vfs: CompatibleVFS) {
     const initial = `= Hello, Typst!
 
 This is a *collaborative* document.
 
 #align(center)[
-  #rect(fill: blue.transparentize(0.8))[
+  #rect(fill: blue.transparentize(80%))[
     #text(size: 24pt)[Welcome to typst-collab!]
   ]
 ]
@@ -161,6 +149,23 @@ This is a *collaborative* document.
 `
     vfs.setFile('main.typ', initial)
     activeFile.value = 'main.typ'
+}
+
+watch(vfsReady, async (ready) => {
+  if (!ready) return
+  const vfs = getVFS()
+  rawVFS = vfs
+  vfsAdapter = {
+    listFiles: () => vfs.listFiles(),
+    readFileAsString: (p: string) => vfs.readFileAsString(p),
+    readFileAsBytes: (p: string) => vfs.readFileAsBytes(p),
+    isBinary: (p: string) => vfs.isBinary(p),
+  }
+
+  const list = vfs.listFiles()
+  if (list.length === 0) {
+    if (!confirm('No files found in the box (for now). Do you want to create a demo project?\nWARNING: This will overwrite any existing files.')) return
+    createDemoProject(vfs)
   } else if (!list.includes(activeFile.value)) {
     activeFile.value = list[0]
   }
