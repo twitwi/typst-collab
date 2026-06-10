@@ -13,6 +13,6 @@ export default defineConfig({
     target: 'esnext',
   },
   optimizeDeps: {
-    exclude: ['@myriaddreamin/typst.ts'],
+    exclude: ['@myriaddreamin/typst.ts', '@vedivad/typst-web-service'],
   },
 })
