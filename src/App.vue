@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted } fr
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
-import type { CompatibleVFS } from './composables/useCompatibleVFS'
+import type { VFS } from 'yjs-datatools'
 import type { TypstProject, TypstHighlightingController } from '@vedivad/codemirror-typst'
 import { TypstAnalyzer, TypstFormatter } from '@vedivad/codemirror-typst'
 import tinymistWasmUrl from 'tinymist-web/pkg/tinymist_bg.wasm?url'
@@ -16,7 +16,7 @@ import QuickSearchOverlay from './components/QuickSearchOverlay.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
-const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
+const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, version, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
 
 const showBoxInput = ref(false)
 const showQuickSearch = ref(false)
@@ -27,7 +27,7 @@ const fontSize = ref(Number(localStorage.getItem('typst-collab:font-size')) || 1
 watch(fontSize, (v) => localStorage.setItem('typst-collab:font-size', String(v)))
 const triggerRename = ref<string | null>(null)
 
-let rawVFS: CompatibleVFS | null = null
+let rawVFS: VFS | null = null
 let vfsAdapter: VFSAdapter | null = null
 const editorPaneRef = ref<InstanceType<typeof EditorPane>>()
 const lspProject = shallowRef<TypstProject>()
@@ -38,7 +38,7 @@ let syncingLsp = false
 
 const vfsVersion = computed(() => {
   vfsReady.value
-  return rawVFS?.version.value ?? 0
+  return version.value
 })
 
 const fileList = computed(() => {
@@ -128,7 +128,7 @@ function initialize(addr: string) {
   connect()
 }
 
-function createDemoProject(vfs: CompatibleVFS) {
+function createDemoProject(vfs: VFS) {
     const initial = `= Hello, Typst!
 
 This is a *collaborative* document.

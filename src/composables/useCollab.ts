@@ -1,9 +1,7 @@
-import { ref, computed, watch, onUnmounted, type Ref } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
-import { parseHash } from '../lib/hash'
-import { getY } from '../lib/ytools'
-import { useCompatibleVFS, ensureMapPath } from './useCompatibleVFS'
+import { parseHash, createVFS, ensureMapPath, getY, isYMap } from 'yjs-datatools'
 
 const NAMES = [
   'Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank',
@@ -13,19 +11,6 @@ const NAMES = [
 const LS_NAME_KEY = 'typst-collab:user-name'
 const LS_COLOR_KEY = 'typst-collab:user-color'
 const randItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
-
-function hashString(s: string): number {
-  let h = 5381
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) | 0
-  }
-  return Math.abs(h)
-}
-
-function nameToColor(name: string): string {
-  const h = hashString(name) % 360
-  return `hsl(${h}, 70%, 35%)`
-}
 
 export function useCollab() {
   const connected = ref(false)
@@ -39,7 +24,21 @@ export function useCollab() {
   const awareness = ref<any>(null)
   let ydoc: Y.Doc | null = null
   let provider: WebsocketProvider | null = null
-  let vfs: ReturnType<typeof useCompatibleVFS> | null = null
+  let vfsImpl: ReturnType<typeof createVFS> | null = null
+  const _version = ref(0)
+
+  function hashString(s: string): number {
+    let h = 5381
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) + h + s.charCodeAt(i)) | 0
+    }
+    return Math.abs(h)
+  }
+
+  function nameToColor(name: string): string {
+    const h = hashString(name) % 360
+    return `hsl(${h}, 70%, 35%)`
+  }
 
   function initFromHash(hash: string) {
     const p = parseHash(hash)
@@ -60,12 +59,13 @@ export function useCollab() {
     provider.on('sync', (synced: boolean) => {
       if (!synced) return
       const existing = getY(ydoc!, p.path)
-      if (existing && existing instanceof Y.Map) {
-        vfs = useCompatibleVFS(existing)
+      if (existing && isYMap(existing)) {
+        vfsImpl = createVFS(existing)
       } else {
         const created = ensureMapPath(ydoc!, p.path)
-        vfs = useCompatibleVFS(created, true)
+        vfsImpl = createVFS(created, true)
       }
+      vfsImpl.description.observeDeep(() => { _version.value++ })
       vfsReady.value = true
     })
 
@@ -111,9 +111,9 @@ export function useCollab() {
     provider?.disconnect()
   }
 
-  function getVFS(): ReturnType<typeof useCompatibleVFS> {
-    if (!vfs) throw new Error('VFS not initialized')
-    return vfs
+  function getVFS(): ReturnType<typeof createVFS> {
+    if (!vfsImpl) throw new Error('VFS not initialized')
+    return vfsImpl
   }
 
   function setMainFile(path: string) {
@@ -153,6 +153,7 @@ export function useCollab() {
     myColor,
     forcedColor,
     awareness,
+    version: _version,
     initFromHash,
     connect,
     disconnect,
