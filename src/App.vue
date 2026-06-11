@@ -3,10 +3,8 @@ import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted } fr
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
-import type { CompatibleVFS } from './composables/useCompatibleVFS'
-import type { TypstProject, TypstHighlightingController } from '@vedivad/codemirror-typst'
-import { TypstAnalyzer, TypstFormatter } from '@vedivad/codemirror-typst'
-import tinymistWasmUrl from 'tinymist-web/pkg/tinymist_bg.wasm?url'
+import type { VFS } from 'yjs-datatools'
+import { TypstProject } from '@vedivad/codemirror-typst'
 import FileTree from './components/FileTree.vue'
 import EditorPane from './components/EditorPane.vue'
 import PreviewPane from './components/PreviewPane.vue'
@@ -16,7 +14,7 @@ import QuickSearchOverlay from './components/QuickSearchOverlay.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
-const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
+const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, version, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
 
 const showBoxInput = ref(false)
 const showQuickSearch = ref(false)
@@ -27,18 +25,15 @@ const fontSize = ref(Number(localStorage.getItem('typst-collab:font-size')) || 1
 watch(fontSize, (v) => localStorage.setItem('typst-collab:font-size', String(v)))
 const triggerRename = ref<string | null>(null)
 
-let rawVFS: CompatibleVFS | null = null
+let rawVFS: VFS | null = null
 let vfsAdapter: VFSAdapter | null = null
 const editorPaneRef = ref<InstanceType<typeof EditorPane>>()
 const lspProject = shallowRef<TypstProject>()
-const lspFormatter = shallowRef<TypstFormatter>()
-const lspHighlighting = shallowRef<TypstHighlightingController>()
-const lspTrackedPaths = new Set<string>()
-let syncingLsp = false
+
 
 const vfsVersion = computed(() => {
   vfsReady.value
-  return rawVFS?.version.value ?? 0
+  return version.value
 })
 
 const fileList = computed(() => {
@@ -128,7 +123,7 @@ function initialize(addr: string) {
   connect()
 }
 
-function createDemoProject(vfs: CompatibleVFS) {
+function createDemoProject(vfs: VFS) {
     const initial = `= Hello, Typst!
 
 This is a *collaborative* document.
@@ -176,17 +171,7 @@ watch(vfsReady, async (ready) => {
   }
 
   try {
-    const { createTypstHighlighting, TypstProject, TypstCompiler } = await import('@vedivad/codemirror-typst')
-    const [analyzer, compiler, highlighting] = await Promise.all([
-      TypstAnalyzer.create({ wasmUrl: tinymistWasmUrl }),
-      TypstCompiler.create(),
-      createTypstHighlighting({
-        theme: 'catppuccin-mocha',
-        themes: { 'catppuccin-mocha': 'catppuccin-mocha' },
-      }),
-    ])
-    lspFormatter.value = await TypstFormatter.create({ tab_spaces: 2, max_width: 80 })
-    const project = new TypstProject({ compiler, analyzer, autoCompile: { debounceMs: 300 } })
+    const project = await TypstProject.create({ entry: '/main.typ', autoCompile: { debounceMs: 300 } })
     for (const file of vfs.listFiles()) {
       const path = '/' + file
       if (vfs.isBinary(file)) {
@@ -196,50 +181,31 @@ watch(vfsReady, async (ready) => {
         const content = vfs.readFileAsString(file)
         if (content !== null) await project.setText(path, content)
       }
-      lspTrackedPaths.add(file)
     }
-    lastFileListHash = vfs.listFiles().join('\n')
     lspProject.value = project
-    lspHighlighting.value = highlighting
   } catch (e) {
     console.warn('Typst LSP init failed:', e)
   }
 })
 
-let lastFileListHash = ''
-
 watch(vfsVersion, async () => {
-  if (syncingLsp) return
   const project = lspProject.value
   const vfs = rawVFS
   if (!project || !vfs) return
-  const list = vfs.listFiles()
-  const hash = list.join('\n')
-  if (hash === lastFileListHash) return
-  lastFileListHash = hash
-  syncingLsp = true
-  try {
-    const current = new Set(list)
-    for (const file of lspTrackedPaths) {
-      if (!current.has(file)) {
-        lspTrackedPaths.delete(file)
-        await project.remove('/' + file)
-      }
+  const list = new Set(vfs.listFiles())
+  for (const file of list) {
+    const path = '/' + file
+    if (vfs.isBinary(file)) {
+      const bytes = vfs.readFileAsBytes(file)
+      if (bytes !== null) await project.setBinary(path, bytes)
+    } else {
+      const content = vfs.readFileAsString(file)
+      if (content !== null) await project.setText(path, content)
     }
-    for (const file of current) {
-      if (lspTrackedPaths.has(file)) continue
-      const path = '/' + file
-      if (vfs.isBinary(file)) {
-        const bytes = vfs.readFileAsBytes(file)
-        if (bytes !== null) await project.setBinary(path, bytes)
-      } else {
-        const content = vfs.readFileAsString(file)
-        if (content !== null) await project.setText(path, content)
-      }
-      lspTrackedPaths.add(file)
-    }
-  } finally {
-    syncingLsp = false
+  }
+  for (const pf of project.files) {
+    const name = pf.slice(1)
+    if (!list.has(name)) await project.remove(pf)
   }
 })
 
@@ -430,8 +396,6 @@ function onGlobalKeyDown(e: KeyboardEvent) {
           :active-file="activeFile"
           :font-size="fontSize + 'px'"
           :project="lspProject"
-          :formatter="lspFormatter"
-          :highlighting="lspHighlighting"
           @paste-image="handlePasteImage"
         />
         <div v-else class="empty-editor">Select or create a file</div>
