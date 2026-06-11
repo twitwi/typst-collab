@@ -167,7 +167,12 @@ watch(vfsReady, async (ready) => {
     if (!confirm('No files found in the box (for now). Do you want to create a demo project?\nWARNING: This will overwrite any existing files.')) return
     createDemoProject(vfs)
   } else if (!list.includes(activeFile.value)) {
-    activeFile.value = list[0]
+    const firstTyp = list.find(f => f.endsWith('.typ'))
+    if (firstTyp) {
+      activeFile.value = firstTyp
+    } else {
+      activeFile.value = list[0]
+    }
   }
 
   try {
