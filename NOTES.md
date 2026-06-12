@@ -11,7 +11,7 @@ rm -rf typst-collab
 
 ## DALC
 
-pnpm build --base /apps/typst-collab/
-rsync -avzu --delete dist/ dalc:/var/www/html/apps/typst-collab/ && touch .lastsync-dalc
+pnpm build --base /typst-collab/
+rsync -avzu --delete dist/ dalc:/var/www/html/typst-collab/ && touch .lastsync-dalc
 
 ~~~~

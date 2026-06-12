@@ -11,6 +11,15 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@myriaddreamin') || id.includes('@vedivad')) {
+            return 'typst-vendor'
+          }
+        },
+      },
+    },
   },
   optimizeDeps: {
     exclude: ['@myriaddreamin/typst.ts', '@vedivad/typst-web-service'],
