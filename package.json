@@ -36,7 +36,6 @@
     "typescript": "~5.7",
     "vite": "^6.0",
     "vue-tsc": "^2.2",
-    "ws": "^8.18",
-    "yjs-datatools": "github:twitwi/yjs-datatools"
+    "ws": "^8.18"
   }
 }

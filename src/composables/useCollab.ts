@@ -1,7 +1,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
-import { parseHash, createVFS, ensureMapPath, getY, isYMap } from 'yjs-datatools'
+import { parseHash, openVfs, type Vfs } from '@/boxtools'
 
 const NAMES = [
   'Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank',
@@ -24,7 +24,7 @@ export function useCollab() {
   const awareness = ref<any>(null)
   let ydoc: Y.Doc | null = null
   let provider: WebsocketProvider | null = null
-  let vfsImpl: ReturnType<typeof createVFS> | null = null
+  let vfsImpl: Vfs | null = null
   const _version = ref(0)
 
   function hashString(s: string): number {
@@ -58,13 +58,11 @@ export function useCollab() {
 
     provider.on('sync', (synced: boolean) => {
       if (!synced) return
-      const existing = getY(ydoc!, p.path)
-      if (existing && isYMap(existing)) {
-        vfsImpl = createVFS(existing)
-      } else {
-        const created = ensureMapPath(ydoc!, p.path)
-        vfsImpl = createVFS(created, true)
-      }
+      // Open the existing box map, or create the chain (root is materialized
+      // lazily on first write — an empty box lists as [] either way).
+      const vfs = openVfs(ydoc!, p.path, true)
+      if (!vfs) return
+      vfsImpl = vfs
       vfsImpl.description.observeDeep(() => { _version.value++ })
       vfsReady.value = true
     })
@@ -111,7 +109,7 @@ export function useCollab() {
     provider?.disconnect()
   }
 
-  function getVFS(): ReturnType<typeof createVFS> {
+  function getVFS(): Vfs {
     if (!vfsImpl) throw new Error('VFS not initialized')
     return vfsImpl
   }

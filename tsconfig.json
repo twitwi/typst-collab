@@ -21,5 +21,5 @@
       "js-yaml": ["./node_modules/js-yaml"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts", "../yjs-datatools/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.d.ts"]
 }

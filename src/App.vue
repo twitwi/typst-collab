@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted } fr
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
-import type { VFS } from 'yjs-datatools'
+import type { Vfs as VFS } from '@/boxtools'
 import { TypstProject } from '@vedivad/codemirror-typst'
 import FileTree from './components/FileTree.vue'
 import EditorPane from './components/EditorPane.vue'
