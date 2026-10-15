@@ -46,6 +46,21 @@ export interface Connection {
   whenReady: Promise<void>
 }
 
+/**
+ * Moved-document check (same semantics as yjs-datatools ysetup.ts).
+ * Pure read, no UI: when the doc root holds a `meta-301-moved` string, the
+ * document has moved — first line is the new document path, the rest is a
+ * human comment. Returns null when absent, non-string, or empty.
+ * Prompting/redirect policy stays in the app layer (it owns confirm(),
+ * navigation, and the provider); this only reports the fact.
+ */
+export function checkMoved(ydoc: Y.Doc): { newDocumentPath: string; comment: string } | null {
+  const moved = ydoc.getMap().get('meta-301-moved')
+  if (typeof moved !== 'string' || !moved) return null
+  const [newDocumentPath, ...rest] = moved.split('\n')
+  return { newDocumentPath, comment: rest.join('\n') }
+}
+
 // Accepts BoxConfig or a ParsedHash (tags ride along, ignored here —
 // read-only mode etc. is app policy, not connection policy). The box path
 // is not needed to connect; resolving it is the box layer's job.

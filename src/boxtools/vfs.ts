@@ -57,6 +57,14 @@ export interface Vfs {
   renameNode(oldPath: string, newPath: string): void
   /** True when the box holds no live entries. */
   isEmpty(): boolean
+  /**
+   * Drop children entries pointing at missing, tombstoned (`deleted`), or
+   * unknown-type nodes, reclaiming singly-referenced node maps. Needed after
+   * interop with writers that leave stale keys (e.g. codyjs tombstones);
+   * our own deletes never create them. Idempotent, sync-convergent.
+   * Returns the number of dropped entries.
+   */
+  sweepStaleKeys(): number
 }
 
 function stepsOf(path: string): string[] {
@@ -370,10 +378,70 @@ export function createVfs(box: Y.Map<unknown>): Vfs {
     }
     srcChildren?.delete(src.name)
     targetChildren.set(target.name, id)
+    // Keep the parent link (used by id->path resolution) in sync with the
+    // children-key move; bump mtime like a content write.
+    const moved = nodeOf(box, id)
+    if (moved) {
+      moved.set('parent', target.dirId)
+      moved.set('mtime', Date.now())
+    }
   }
 
   function isEmpty(): boolean {
     return listFiles().length === 0
+  }
+
+  function sweepStaleKeys(): number {
+    const r = root(box, false)
+    if (!r) return 0
+    // Reference counts first: never drop a node map another key still links.
+    const refs = new Map<string, number>()
+    const dirs: Y.Map<unknown>[] = [r]
+    const seenDirs = new Set<Y.Map<unknown>>([r])
+    for (let i = 0; i < dirs.length; i++) {
+      const children = childrenOf(dirs[i])
+      if (!children) continue
+      for (const [, cid] of children) {
+        refs.set(cid, (refs.get(cid) ?? 0) + 1)
+        const sub = nodeOf(box, cid)
+        if (sub && childrenOf(sub) && !seenDirs.has(sub)) {
+          seenDirs.add(sub)
+          dirs.push(sub)
+        }
+      }
+    }
+    const dropSubtree = (nodeId: string) => {
+      // Called after the unlinking key was already decremented: drop only
+      // when no live key references the node anymore.
+      if ((refs.get(nodeId) ?? 0) > 0) return
+      refs.set(nodeId, 0)
+      const n = nodeOf(box, nodeId)
+      if (!n) return
+      const c = childrenOf(n)
+      if (c) {
+        for (const [, cid] of [...c]) {
+          refs.set(cid, (refs.get(cid) ?? 0) - 1)
+          dropSubtree(cid)
+        }
+      }
+      box.delete(nodeId)
+    }
+    let dropped = 0
+    for (const dir of dirs) {
+      const children = childrenOf(dir)
+      if (!children) continue
+      for (const [name, cid] of [...children]) {
+        const target = nodeOf(box, cid)
+        const live = target !== undefined && (childrenOf(target) !== undefined || contentOf(target) !== undefined)
+        if (!live) {
+          children.delete(name)
+          refs.set(cid, (refs.get(cid) ?? 0) - 1)
+          dropSubtree(cid)
+          dropped++
+        }
+      }
+    }
+    return dropped
   }
 
   return {
@@ -390,5 +458,6 @@ export function createVfs(box: Y.Map<unknown>): Vfs {
     deleteNode,
     renameNode,
     isEmpty,
+    sweepStaleKeys,
   }
 }
