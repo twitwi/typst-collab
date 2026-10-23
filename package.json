@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
-    "server": "node server/index.js"
+    "server": "node server/index.js",
+    "stress:build": "node stress/build.mjs",
+    "stress": "npm run stress:build && node stress/dist/headless.mjs",
+    "stress:scripted": "npm run stress:build && node stress/dist/headless.mjs --phase=scripted",
+    "stress:chaos": "npm run stress:build && node stress/dist/headless.mjs --phase=chaos"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18",

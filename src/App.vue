@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, shallowRef, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import * as Y from 'yjs'
 import { useCollab } from './composables/useCollab'
 import type { VFSAdapter } from './composables/useTypst'
@@ -14,7 +14,12 @@ import QuickSearchOverlay from './components/QuickSearchOverlay.vue'
 
 const LS_KEY = 'typst-collab:box-address'
 
-const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, version, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor } = useCollab()
+const { connected, users, vfsReady, mainFile, myName, myColor, forcedColor, awareness, version, initFromHash, connect, disconnect, getVFS, setMainFile, setMyName, setForcedColor, getYDoc } = useCollab()
+
+// Chaos mode (?chaos=1): overlay panel driving in-page bot collaborators.
+// Lazy import => zero impact on normal sessions when the flag is absent.
+const chaosMode = new URLSearchParams(window.location.search).has('chaos')
+const ChaosPanel = chaosMode ? defineAsyncComponent(() => import('./stress/ChaosPanel.vue')) : null
 
 const showBoxInput = ref(false)
 const showQuickSearch = ref(false)
@@ -431,6 +436,7 @@ function onGlobalKeyDown(e: KeyboardEvent) {
       @select="(path) => { handleSelect(path); showQuickSearch = false; nextTick(() => (editorPaneRef as any)?.focus()) }"
       @close="showQuickSearch = false"
     />
+    <ChaosPanel v-if="chaosMode && ChaosPanel" :box-address="boxAddress" :get-main-doc="getYDoc" />
   </div>
 </template>
 
