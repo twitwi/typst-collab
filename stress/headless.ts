@@ -10,7 +10,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import WebSocket from 'ws'
 import * as fs from 'node:fs'
-import { openVfs } from '../src/boxtools'
+import { openVfs } from 'yjs-boxtools'
 import type { OpTarget } from './core'
 import {
   applyOp,

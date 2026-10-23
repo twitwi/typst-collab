@@ -7,7 +7,7 @@
 import { onUnmounted, ref } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
-import { openVfs, parseHash } from '@/boxtools'
+import { openVfs, parseHash } from 'yjs-boxtools'
 import { applyOp, mulberry32, randomOp, stateHash, type StressClient } from '../../stress/core'
 
 export interface ChaosBot extends StressClient {

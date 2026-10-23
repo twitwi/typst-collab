@@ -1,7 +1,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
-import { parseHash, openVfs, type Vfs } from '@/boxtools'
+import { parseHash, openVfs, type Vfs } from 'yjs-boxtools'
 
 const NAMES = [
   'Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank',

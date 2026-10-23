@@ -1,4 +1,5 @@
-// Bundles stress/headless.ts (+ core + boxtools) into stress/dist/headless.mjs.
+// Bundles stress/headless.ts (+ core) into stress/dist/headless.mjs.
+// yjs-boxtools comes from node_modules and is bundled too; yjs/ws/lib0 stay external.
 // Uses the repo's own esbuild: no new dependencies.
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)

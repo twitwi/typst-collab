@@ -1,7 +1,7 @@
 // Pure-local isolation probe: two Y.Docs, no providers, no network.
 // Answers: does a rename on A's VFS leak into B's VFS synchronously?
 import * as Y from 'yjs'
-import { openVfs } from '../src/boxtools'
+import { openVfs } from 'yjs-boxtools'
 
 const docA = new Y.Doc()
 const docB = new Y.Doc()

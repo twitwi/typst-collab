@@ -33,7 +33,8 @@
     "y-codemirror.next": "^0.3",
     "y-indexeddb": "^9.0",
     "y-websocket": "^2.0",
-    "yjs": "^13.6"
+    "yjs": "^13.6",
+    "yjs-boxtools": "github:twitwi/yjs-boxtools"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2",
