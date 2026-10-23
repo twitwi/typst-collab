@@ -33,15 +33,34 @@ export function useChaosBots(getMainDoc: () => Y.Doc | null) {
     if (log.value.length > 60) log.value.shift()
   }
 
-  function start(addr: string, botCount = 2, seed = 7) {
+  /** Resolve once the provider has received the room state (or after a cap). */
+  function whenSynced(provider: WebsocketProvider): Promise<void> {
+    if (provider.synced) return Promise.resolve()
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(cap)
+        provider.off('sync', onSync)
+        resolve()
+      }
+      const onSync = (synced: boolean) => { if (synced) done() }
+      const cap = setTimeout(done, 10_000)
+      provider.on('sync', onSync)
+    })
+  }
+
+  async function start(addr: string, botCount = 2, seed = 7) {
     if (running.value) return
     if (!confirm(`Start ${botCount} chaos bots in this room?\nThey will concurrently create/edit/rename/delete files until stopped.`)) {
       return
     }
+    running.value = true
     const p = parseHash(addr)
+    // Unique tag per page: two peers both starting "chaos0" would race on
+    // stress/chaos0 and orphan each other's subtree (children-key LWW).
+    const tag = Math.random().toString(36).slice(2, 6)
     rngState = seed
     for (let i = 0; i < botCount; i++) {
-      const name = `chaos${i}`
+      const name = `chaos${i}-${tag}`
       const doc = new Y.Doc()
       const provider = new WebsocketProvider(
         p.server.includes('://') ? p.server : `wss://${p.server}`,
@@ -50,11 +69,17 @@ export function useChaosBots(getMainDoc: () => Y.Doc | null) {
         { disableBc: true },
       )
       provider.awareness.setLocalStateField('user', { name, color: '#ff00ff' })
+      pushLog(`${name} joining ${p.docname}`)
+      // MUST sync before opening the box: creating it concurrently on an
+      // unsynced doc gives every peer its own root map, and root-key LWW
+      // orphans all but one — all peers stay "synced" while files vanish.
+      await whenSynced(provider)
+      if (!running.value) { provider.destroy(); return } // stop() during join
       const vfs = openVfs(doc, p.path, true)!
       bots.value.push({ name, doc, provider: provider as unknown as StressClient['provider'], vfs, ops: 0, fullProvider: provider })
-      pushLog(`${name} joining ${p.docname}`)
+      pushLog(`${name} ready (${vfs.listFiles().length} files in box)`)
     }
-    running.value = true
+    if (!running.value) return // stopped while joining
     timer = setInterval(burst, 1500)
     pushLog('chaos running (burst every 1.5s)')
   }
@@ -72,14 +97,40 @@ export function useChaosBots(getMainDoc: () => Y.Doc | null) {
 
   async function checkConvergence(): Promise<void> {
     diverged.value = null
-    pushLog('waiting 3s for quiescence, then comparing...')
-    await new Promise((r) => setTimeout(r, 3000))
-    const main = getMainDoc()
-    const hashes = bots.value.map((b) => `${b.name}=${stateHash(b.doc)}`)
-    if (main) hashes.push(`main=${stateHash(main)}`)
-    const uniq = new Set(hashes.map((h) => h.split('=')[1]))
-    diverged.value = uniq.size !== 1
-    pushLog(diverged.value ? `DIVERGED: ${hashes.join(' ')}` : `converged (${hashes[0].split('=')[1]})`)
+    // A fixed sleep is a coin flip: bursts fire every 1.5s, so a snapshot can
+    // land with updates still in flight. Pause production, then wait for a
+    // genuinely stable all-synced state before judging.
+    const wasRunning = running.value
+    if (wasRunning) {
+      running.value = false
+      if (timer !== undefined) { clearInterval(timer); timer = undefined }
+    }
+    pushLog('paused; waiting for stable quiescence...')
+    const deadline = Date.now() + 15_000
+    let lastSig = ''
+    let stable = 0
+    let hashes: string[] = []
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 150))
+      const main = getMainDoc()
+      hashes = bots.value.map((b) => `${b.name}=${stateHash(b.doc)}`)
+      if (main) hashes.push(`main=${stateHash(main)}`)
+      const sig = hashes.map((h) => h.split('=')[1]).join(',')
+      const allSynced = bots.value.every((b) => b.fullProvider.synced)
+      if (allSynced && new Set(sig.split(',')).size === 1 && sig === lastSig) {
+        if (++stable >= 3) break
+      } else {
+        stable = 0
+      }
+      lastSig = sig
+    }
+    diverged.value = new Set(hashes.map((h) => h.split('=')[1])).size !== 1
+    pushLog(diverged.value ? `DIVERGED: ${hashes.join(' ')}` : `converged (${hashes[0]?.split('=')[1] ?? 'n/a'})`)
+    if (wasRunning) {
+      running.value = true
+      timer = setInterval(burst, 1500)
+      pushLog('resumed')
+    }
   }
 
   function stop() {
